@@ -1,0 +1,227 @@
+#!/bin/bash
+# ============================================================================
+# karui-oto · bin/karui-oto — the project's single CLI
+# ----------------------------------------------------------------------------
+# WHAT:
+#   Entry point. Public subcommands (what the compositor binds):
+#     songs    open the songs picker (library shuffled, picked first)
+#     artists  open the artists picker (MUSIC_DIR folders)
+#     albums   open the albums picker (tags: Artist — Album)
+#     folders  open the folders picker (any subtree, picked folder shuffled)
+#     kill     kill everything (stop + daemon + MPRIS + window)
+#     binds    print compositor keybinds generated from shortcuts.*
+#     version  print version. help shows help.
+#   Internal __pick <mode>: runs fzf INSIDE the picker window (invoked by
+#   the terminal adapter, not by the user).
+#
+# WHERE IT FITS / FLOW:
+#   key -> `karui-oto songs` -> ensure_mpd (start daemon if missing) ->
+#   term_open (terminals/<TERMINAL>.sh) -> `karui-oto __pick songs` ->
+#   run_pick (lib/picker.sh): fzf -> mpc queue -> play -> deferred MPRIS.
+#   Esc with music/queue = just closes. Esc with nothing = kills everything
+#   (never leaves an idle daemon: on-demand philosophy, 0 boot processes).
+#
+# HOW TO EXTEND (new "genres" mode):
+#   1) list_/queue_ in lib/picker.sh + run_pick() case. 2) public case here
+#   opening the terminal (copy songs). 3) binds/ + README + config if it
+#   needs knobs. 4) bind mode metadata below (titles). Nothing else.
+# ============================================================================
+set -u
+
+# KO_ROOT also works if bin/ is a symlink (installed in ~/.local/bin).
+_src="${BASH_SOURCE[0]}"
+while [ -L "$_src" ]; do
+    _d="$(cd -P -- "$(dirname -- "$_src")" >/dev/null 2>&1 && pwd -P)"
+    _src="$(readlink "$_src")"
+    case "$_src" in /*) : ;; *) _src="$_d/$_src" ;; esac
+done
+KO_ROOT="$(cd -P -- "$(dirname -- "$_src")/.." >/dev/null 2>&1 && pwd -P)"
+unset _src _d
+export KO_ROOT
+
+source "$KO_ROOT/lib/common.sh"
+
+KO_VERSION="1.0.0"
+
+usage() {
+    cat <<EOF
+karui-oto $KO_VERSION — MPD pickers with fzf
+Usage: karui-oto {songs|artists|albums|folders|kill|binds|setup|doctor|version|help}
+  songs    whole library shuffled (picked first)
+  artists  artist folder shuffled (MUSIC_DIR folders)
+  albums   album by tags shuffled (Artist — Album)
+  folders  any folder subtree shuffled (direct to the disc)
+  kill     stop everything and drop the daemon (0 processes)
+  binds [--copy|--apply|--remove] [comp]
+           print/generate keybinds from shortcuts.* (comp: niri hyprland
+           sway i3 gnome kde xfce cinnamon mate openbox bspwm; see
+           COMPATIBILITY.txt for support level per desktop)
+  setup    interactive first-run wizard (writes config.jsonc)
+  doctor   read-only health check with fixes for each finding
+Config: \${KARUI_OTO_CONFIG:-~/.config/karui-oto/config.jsonc}
+EOF
+}
+
+# Open the mode picker in a new window. Never interrupts music: if an old
+# picker window is open, it is closed (dies by signal, no cleanup) so
+# windows don't pile up.
+open_mode() {
+    local modo="$1"
+    need_cmd mpc; need_cmd fzf
+    source "$KO_ROOT/terminals/$TERMINAL.sh"
+    if ! mpd_vivo; then
+        start_mpd
+    else
+        pkill -f "buscador_mp[d]" 2>/dev/null
+    fi
+    term_open "$KO_ROOT/bin/karui-oto" __pick "$modo"
+}
+
+# Binds text generation lives in lib/binds.sh; file delivery (conflicts,
+# clipboard, apply/remove with backups) in lib/bindsinstall.sh. Both are
+# sourced lazily here so `songs` never pays for what it doesn't use.
+load_binds_libs() {
+    source "$KO_ROOT/lib/binds.sh"
+    source "$KO_ROOT/lib/bindsinstall.sh"
+}
+
+# binds [--copy|--apply|--remove] [compositor]: print (default), clipboard,
+# assisted file install, or removal. Auto-detects the compositor.
+binds_cmd() {
+    load_binds_libs
+    local action="print" comp="" a
+    for a in "$@"; do
+        case "$a" in
+            --copy|--apply|--remove) action="${a#--}" ;;
+            niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm) comp="$a" ;;
+            *) die "binds: bad argument: $a (use: binds [--copy|--apply|--remove] [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm])" ;;
+        esac
+    done
+    if [ -z "$comp" ]; then
+        comp="$(detect_compositor)" \
+            || die "cannot detect desktop (set it: binds [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm])"
+    fi
+    is_comp "$comp" || die "unknown desktop: $comp (valid: $SUPPORTED_COMPS)"
+    case "$action" in
+        print)
+            cmd_binds "$comp" ;;
+        copy)
+            local out
+            out="$(cmd_binds "$comp")"
+            printf '%s\n' "$out"
+            if printf '%s\n' "$out" | clip_copy; then
+                log "copied to clipboard"
+            else
+                log "no clipboard backend (wl-copy/xclip); output above — install one or paste manually"
+            fi ;;
+        apply)
+            [ -t 0 ] || die "binds --apply needs an interactive terminal (refusing to pipe into your config)"
+            binds_apply_flow "$comp" ;;
+        remove)
+            local file bak
+            file="$(comp_file "$comp")"
+            case "$comp" in
+                gnome|cinnamon|mate|kde|xfce)
+                    bak="$(backup_settings "$comp")"
+                    printf 'backup: %s\n' "$bak" >&2
+                    remove_block "$comp" "$file"
+                    printf 'removed our karui-oto shortcuts from %s (backup kept)\n' "$comp" >&2 ;;
+                *)
+                    [ -f "$file" ] || die "config file not found: $file"
+                    bak="$(backup_file "$file")"
+                    printf 'backup: %s\n' "$bak" >&2
+                    remove_block "$comp" "$file"
+                    printf 'removed our block from %s (backup kept)\n' "$file" >&2 ;;
+            esac ;;
+    esac
+}
+
+# Shared pre-flight for --apply: at least one shortcut assigned + no
+# conflicts with foreign binds. Returns 0 or dies with specifics.
+binds_preflight() {
+    local comp="$1" mode combo var any=0 bad=0 line
+    for mode in songs artists albums folders kill; do
+        var="SHORTCUTS_${mode^^}"; combo="${!var}"
+        [ -n "$combo" ] || continue
+        any=1
+        if line="$(binds_conflict "$comp" "$combo")"; then
+            # Own previous install (marked block): will be replaced, not a conflict.
+            case "$line" in
+                *karui-*) log "keeping own bind: $combo" ;;
+                *)
+                    printf 'conflict: %s is already bound:\n  %s\n' "$combo" "$line" >&2
+                    printf 'suggestion: %s (free here)\n' "$(suggest_combo "$comp" "$(comp_file "$comp")")" >&2
+                    bad=1 ;;
+            esac
+        fi
+    done
+    [ "$any" -eq 1 ] || die "no shortcuts assigned (fill shortcuts.* in config first)"
+    [ "$bad" -eq 0 ] || die "resolve conflicts first (change shortcuts.* or free those binds)"
+    # Media keys (fixed XF86 table, always installed): warn-only, never block.
+    # Desktops often pre-bind XF86AudioPlay system-wide; ours coexists and
+    # --remove only deletes our entries, so a foreign bind is a note, not fatal.
+    local _mkey
+    for _mkey in XF86AudioNext XF86AudioPrev XF86AudioPlay; do
+        if line="$(binds_conflict "$comp" "$_mkey")"; then
+            case "$line" in
+                *karui-*) : ;;
+                *) printf 'note: %s already bound (media keys still installed):\n  %s\n' "$_mkey" "$line" >&2 ;;
+            esac
+        fi
+    done
+}
+
+# Full --apply flow: preflight -> stage -> show -> confirm -> apply.
+binds_apply_flow() {
+    local comp="$1" file tmp ans
+    file="$(comp_file "$comp")"
+    case "$comp" in
+        gnome|cinnamon|mate|kde|xfce) : ;; # live stores: no file needed
+        *) [ -f "$file" ] || die "config file not found: $file (paste manually: karui-oto binds $comp)" ;;
+    esac
+    binds_preflight "$comp"
+    tmp="$(mktemp)"
+    gen_binds_block "$comp" > "$tmp"
+    printf 'Will apply to %s:\n' "$file" >&2
+    sed 's/^/  /' "$tmp" >&2
+    printf 'Yours stays safe: backup first, --remove reverses. Reload: %s\n' "$(reload_hint "$comp")" >&2
+    printf 'This installs your shortcuts so the pickers open with your keys. Safe to say yes: it keeps a backup you can undo.\n' >&2
+    read -r -p "Apply? [y/N] " ans
+    case "$ans" in
+        y|Y|yes|YES) : ;;
+        *) rm -f "$tmp"; die "aborted, nothing changed" ;;
+    esac
+    binds_apply "$comp" "$tmp"
+    rm -f "$tmp"
+}
+
+main() {
+    load_config
+    local cmd="${1:-help}"
+    case "$cmd" in
+        songs|artists|albums|folders) open_mode "$cmd" ;;
+        __pick)               # internal: runs INSIDE the terminal
+            need_cmd mpc; need_cmd fzf
+            source "$KO_ROOT/lib/picker.sh"
+            shift
+            wait_mpd || { kill_all; die "MPD not answering"; }
+            run_pick "${1:-songs}"
+            ;;
+        binds)
+            shift
+            binds_cmd "$@"
+            ;;
+        setup)
+            source "$KO_ROOT/lib/setup.sh"
+            cmd_setup "$@" ;;
+        doctor)
+            source "$KO_ROOT/lib/doctor.sh"
+            cmd_doctor "$@" ;;
+        kill)    kill_all ;;
+        version) printf 'karui-oto %s\n' "$KO_VERSION" ;;
+        help|--help|-h) usage ;;
+        *) die "unknown subcommand: $cmd (use: help)" ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,7 @@
+# karui-oto — never commit these
+*.bak-*
+*.bak
+*~
+.DS_Store
+__pycache__/
+*.pyc

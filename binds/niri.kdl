@@ -1,0 +1,13 @@
+# ============================================================================
+# karui-oto · binds/niri.kdl — paste inside your `binds {}` block
+# NOTE niri: spawn does NOT expand `~`, hence `bash -c` (which does).
+# Change keys to taste. Matches `karui-oto binds niri` output.
+# ============================================================================
+    Mod+O hotkey-overlay-title="karui-oto: search song" { spawn "bash" "-c" "~/.local/bin/karui-oto songs"; }
+    Mod+P hotkey-overlay-title="karui-oto: search artist" { spawn "bash" "-c" "~/.local/bin/karui-oto artists"; }
+    Mod+Shift+P hotkey-overlay-title="karui-oto: search album" { spawn "bash" "-c" "~/.local/bin/karui-oto albums"; }
+    Mod+Shift+O hotkey-overlay-title="karui-oto: search folder" { spawn "bash" "-c" "~/.local/bin/karui-oto folders"; }
+    Mod+X hotkey-overlay-title="karui-oto: kill everything" { spawn "bash" "-c" "~/.local/bin/karui-oto kill"; }
+    XF86AudioNext { spawn "bash" "-c" "~/.local/bin/karui-media next"; }
+    XF86AudioPrev { spawn "bash" "-c" "~/.local/bin/karui-media prev"; }
+    XF86AudioPlay { spawn "bash" "-c" "~/.local/bin/karui-media play-pause"; }

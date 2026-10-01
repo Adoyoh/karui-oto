@@ -1,0 +1,57 @@
+karui-oto — desktops / window managers compatibles
+====================================================
+Core (pickers MPD + fzf + kitty/foot) funciona en todos: solo necesita
+mpd, mpc, fzf, bash, python3 y una terminal. Lo que cambia por escritorio
+es como se instalan los atajos y si la ventana puede ser flotante.
+
+LEYENDA
+  print   karui-oto binds <comp> genera el snippet/comandos
+  --apply  instala asistido (backup + confirmacion + --remove revierte)
+  check   validacion nativa antes/después de aplicar
+  float   ventana flotante por app-id (TERM_CLASS) sin regla manual
+  media   XF86AudioNext/Prev/Play -> karui-media (siempre instaladas,
+          MPD primero: playerctl -p mpd, fallback mpc, nunca otro player)
+
+WMs DE MOSAICO / APILADO (texto)
+  niri      print + --apply + check (niri validate, auto-restore) + float + media
+            config: ~/.config/niri/config.kdl (bloque binds{})
+  hyprland  print + --apply + reload hyprctl reload (sin checker) + float + media
+            config: ~/.config/hypr/hyprland.conf
+  sway      print + --apply + reload swaymsg reload (sin checker) + float + media
+            config: ~/.config/sway/config
+  i3        print + --apply + check (i3 -C, auto-restore) + float + media
+            config: ~/.config/i3/config
+  openbox   print + --apply (inserta en <keyboard>, si no existe anexa y
+            avisa) + reload openbox --reconfigure + media. Sin checker.
+            config: ~/.config/openbox/rc.xml
+  bspwm     print + --apply a sxhkdrc + reload pkill -USR1 sxhkd + media.
+            Sin checker ni float automatico.
+            config: ~/.config/sxhkd/sxhkdrc
+
+ESCRITORIOS TRADICIONALES (ajustes vivos, sin archivo de binds)
+  gnome     print + --apply (gsettings custom-keybindings, instantaneo)
+            + conflict-check por binding + media. Sin float automatico.
+  cinnamon  print + --apply (igual que gnome, otro schema) + media.
+            Instantaneo.
+  mate      print + --apply (igual que gnome, otro schema) + media.
+            Instantaneo.
+  kde       print + --apply (kwriteconfig5/6 a kglobalaccelrc + reconfigure)
+            + media. Sin checker fiable: backup + hint. Plasma = Meta+O.
+  xfce      print + --apply (xfconf-query /commands/custom/<key>) + media.
+            Instantaneo. Sin checker.
+
+NOTAS
+  - Logo: symbols en todos los terminales (header del picker); image solo
+    kitty (window logo nativo: alpha/scale/posicion; tinte opcional con
+    python3-pil y cache, sin el se usa la original). gif no soportado,
+    1 imagen max. En foot las imagenes se ignoran con aviso.
+  - GNOME/Cinnamon/MATE/KDE/XFCE: Settings > Keyboard > Custom Shortcuts
+    muestra lo mismo que `binds <comp>`; --apply es opt-in con backup en
+    ~/.config/karui-oto/backups/ (dumps dconf / copias ini / dumps xfconf).
+  - Archivos gestionados por home-manager (symlink a /nix/store): --apply
+    rehusa con instrucciones declarativas. Ver README NixOS.
+  - dwm/awesome/qtile y otros no listados: no hay backend dedicado; usa
+    `karui-oto binds sway` como plantilla (sintaxis parecida) y pega a mano.
+    Si lo necesitas, pide el backend y se agrega como los de arriba.
+  - Traditional DEs sin regla flotante: el picker abre centrado/normal;
+    todo lo demas (shuffle, Esc inteligente, kill, MPRIS diferido) igual.

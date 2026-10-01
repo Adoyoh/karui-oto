@@ -1,0 +1,12 @@
+# ============================================================================
+# karui-oto · binds/sway — paste into your sway config ($mod is Mod4)
+# Matches `karui-oto binds sway` output.
+# ============================================================================
+bindsym $mod+o exec ~/.local/bin/karui-oto songs
+bindsym $mod+p exec ~/.local/bin/karui-oto artists
+bindsym $mod+Shift+p exec ~/.local/bin/karui-oto albums
+bindsym $mod+Shift+o exec ~/.local/bin/karui-oto folders
+bindsym $mod+x exec ~/.local/bin/karui-oto kill
+bindsym XF86AudioNext exec ~/.local/bin/karui-media next
+bindsym XF86AudioPrev exec ~/.local/bin/karui-media prev
+bindsym XF86AudioPlay exec ~/.local/bin/karui-media play-pause

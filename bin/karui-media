@@ -1,0 +1,74 @@
+#!/bin/bash
+# ============================================================================
+# karui-oto · bin/karui-media — media keys (MPD first, everywhere, throttled)
+# ----------------------------------------------------------------------------
+# WHAT:
+#   Thin bridge between XF86 keys (play/next/prev) and MPD.
+#   Usage: karui-media {play-pause|next|prev}
+#   (Spanish aliases siguiente|anterior|pausa also work.)
+#
+# WHERE IT FITS:
+#   Bound to XF86AudioPlay/Next/Prev by every `karui-oto binds` target
+#   (always installed, no knob). Serialized with a throttle gap: while one
+#   order runs (plus the gap after it) extra presses are DROPPED, never
+#   queued — spamming the key cannot pile orders onto mpDris and crash it.
+#
+# ORDER (rigid, MPD owns these keys on purpose):
+#   1) playerctl -p mpd (MPRIS via mpDris2). 2) mpc directly (no bridge
+#   needed, works with mpris=false). 3) fail loudly to stderr (background
+#   output is discarded by callers, but manual runs show it).
+#   Bare `playerctl` (any player) is NEVER used: the same key must do the
+#   same thing whether the browser is open or not.
+#
+# TUNING:
+#   THROTTLE (default 0.5s, override with KARUI_MEDIA_THROTTLE=0.8) is the
+#   minimum gap between two orders reaching the player. Lower = snappier
+#   but risks mpDris queue pile-up under spam; higher = safer but laggier.
+# ============================================================================
+set -u
+
+THROTTLE="${KARUI_MEDIA_THROTTLE:-0.5}"
+LOCKDIR="/tmp/karui-oto-media.lockdir"
+PIDFILE="$LOCKDIR/pid"
+
+# Atomic take (mkdir): no TOCTOU. Loser checks the winner's PID.
+if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    oldpid="$(cat "$PIDFILE" 2>/dev/null)"
+    # Winner alive = bounce/spam, drop this press. Winner dead or
+    # unreadable pid = stale lock, take over.
+    if [[ "$oldpid" =~ ^[0-9]+$ ]] && kill -0 "$oldpid" 2>/dev/null; then
+        exit 0
+    fi
+    rm -rf "$LOCKDIR"
+    mkdir "$LOCKDIR" 2>/dev/null || exit 0
+fi
+printf '%s' "$$" > "$PIDFILE"
+trap 'rm -rf "$LOCKDIR"' EXIT
+
+pc_act="play-pause"; mpc_act="toggle"
+case "${1:-play-pause}" in
+    next|siguiente)      pc_act="next";     mpc_act="next" ;;
+    prev|anterior)       pc_act="previous"; mpc_act="prev" ;;
+    play-pause|pausa|toggle|*) : ;;
+esac
+
+# Synchronous on purpose (the compositor never waits on spawn): the lock is
+# held for the whole order, so orders can never overlap or pile up.
+if command -v playerctl >/dev/null 2>&1; then
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 5 playerctl -p mpd "$pc_act" >/dev/null 2>&1 && {
+            sleep "$THROTTLE"; exit 0
+        }
+    else
+        playerctl -p mpd "$pc_act" >/dev/null 2>&1 && {
+            sleep "$THROTTLE"; exit 0
+        }
+    fi
+fi
+if command -v mpc >/dev/null 2>&1; then
+    mpc "$mpc_act" >/dev/null 2>&1 && {
+        sleep "$THROTTLE"; exit 0
+    }
+fi
+printf 'karui-media: nothing to control (no mpd via MPRIS nor mpc)\n' >&2
+exit 1

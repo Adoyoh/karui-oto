@@ -1,0 +1,21 @@
+<!-- ==========================================================================
+     karui-oto · binds/openbox.xml — paste inside <keyboard> in rc.xml
+     (~/.config/openbox/rc.xml), or run: karui-oto binds --apply openbox
+     Reload: openbox --reconfigure. Matches `karui-oto binds openbox`.
+     ========================================================================== -->
+    <!-- karui-oto songs: -->
+    <keybind key="W-O"><action name="Execute"><command>~/.local/bin/karui-oto songs</command></action></keybind>
+    <!-- karui-oto artists: -->
+    <keybind key="W-P"><action name="Execute"><command>~/.local/bin/karui-oto artists</command></action></keybind>
+    <!-- karui-oto albums: -->
+    <keybind key="W-S-P"><action name="Execute"><command>~/.local/bin/karui-oto albums</command></action></keybind>
+    <!-- karui-oto folders: -->
+    <keybind key="W-S-O"><action name="Execute"><command>~/.local/bin/karui-oto folders</command></action></keybind>
+    <!-- karui-oto kill: -->
+    <keybind key="W-X"><action name="Execute"><command>~/.local/bin/karui-oto kill</command></action></keybind>
+    <!-- karui-oto media-next: -->
+    <keybind key="XF86AudioNext"><action name="Execute"><command>~/.local/bin/karui-media next</command></action></keybind>
+    <!-- karui-oto media-prev: -->
+    <keybind key="XF86AudioPrev"><action name="Execute"><command>~/.local/bin/karui-media prev</command></action></keybind>
+    <!-- karui-oto media-play: -->
+    <keybind key="XF86AudioPlay"><action name="Execute"><command>~/.local/bin/karui-media play-pause</command></action></keybind>

@@ -1,0 +1,12 @@
+# ============================================================================
+# karui-oto · binds/i3 — paste into your i3 config ($mod is Mod4)
+# Matches `karui-oto binds i3` output.
+# ============================================================================
+bindsym $mod+o exec --no-startup-id ~/.local/bin/karui-oto songs
+bindsym $mod+p exec --no-startup-id ~/.local/bin/karui-oto artists
+bindsym $mod+Shift+p exec --no-startup-id ~/.local/bin/karui-oto albums
+bindsym $mod+Shift+o exec --no-startup-id ~/.local/bin/karui-oto folders
+bindsym $mod+x exec --no-startup-id ~/.local/bin/karui-oto kill
+bindsym XF86AudioNext exec --no-startup-id ~/.local/bin/karui-media next
+bindsym XF86AudioPrev exec --no-startup-id ~/.local/bin/karui-media prev
+bindsym XF86AudioPlay exec --no-startup-id ~/.local/bin/karui-media play-pause

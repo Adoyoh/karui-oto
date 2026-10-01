@@ -1,0 +1,97 @@
+{
+  // ==========================================================================
+  // karui-oto — example config (JSONC: JSON with comments)
+  // Copy to ~/.config/karui-oto/config.jsonc and adjust.
+  // Order kept on purpose = lib/common.sh defaults order.
+  // Unknown key = warning (likely typo). Invalid value = fatal.
+  // ==========================================================================
+
+  // Music & daemon (path default autodetects: XDG music dir, then
+  // ~/Música, ~/Music, ~/music, ~/Musica — first one that exists)
+  "path": "~/Música",                 // root: one folder = one artist
+  "mpd_conf": "~/.config/mpd/mpd.conf",
+
+  // Which terminal opens by default
+  "terminal": "kitty",                // kitty | foot
+  "term_class": "buscador_mpd",       // app-id: matched by compositor rules
+
+  // --- kitty: individual config (background-only transparency) ---------------
+  "kitty": {
+    "font": "Liberation Mono",        // fontconfig family (verified)
+    "font_size": 16,                  // points
+    "width": 95,                      // cells
+    "height": 15,
+    "color": "",                      // "" = your kitty global theme; "#rrggbb" = bg + auto-contrast text
+    "transparency": 0.85              // 0.00–1.00, background ONLY
+  },
+
+  // --- foot: individual config (fast; alpha = whole window) ------------------
+  "foot": {
+    "font": "Liberation Mono",
+    "font_size": 16,
+    "width": 100,                     // tuned to match kitty presence
+    "height": 24,
+    "color": "",                      // "" = theme; "#rrggbb" + auto contrast
+    "transparency": 1.0               // 0.00–1.00, WHOLE window (foot has no per-color alpha: lower washes the text)
+  },
+
+  // Looks (shared)
+  "theme": "karui-dark",             // file in themes/<name>.sh
+  "icons": {
+    "search": "",             // nerd magnifier (empty also works)
+    "arrow": "▶",                     // current-line pointer
+    "marker": "✓",
+    "album": "♪"                      // artist/album label garnish
+  },
+
+  // Behavior
+  "shuffle": true,                    // true: random on + shuffle. false: in order
+  "repeat": true,                     // true: repeat on
+  "mpris": true,                      // true: start mpDris2 after picking (false if you lack it)
+  "min_tracks": 1,                    // artists mode: hide artists with fewer tracks (1 = show all, 2 hides one-track guests)
+  "hide": ["^\\.", "^Various Artists$"],  // regexes (grep -vE) out of artists mode
+
+  // --- Shortcuts: generate compositor binds from here ------------------------
+  // All EMPTY = unassigned (default state). To assign one: put your combo
+  // right of the key, then run: karui-oto binds [niri|hyprland|sway|i3]
+  // and paste the output into your compositor config.
+  // Format: Mod+O, Mod+Shift+P, Ctrl+Alt+T (empty string = unassigned).
+  "shortcuts": {
+    "songs": "",
+    "artists": "",
+    "albums": "",
+    "folders": "",
+    "kill": ""
+  },
+
+  // --- Per-mode overrides (optional; "" = inherit the globals above) -------
+  // Each bind can carry its own behavior: fill a knob to win over the
+  // global for that mode only. Example: party songs always shuffled,
+  // albums in order, artists without MPRIS:
+  //   "songs":   { "shuffle": true,  "repeat": "",    "mpris": "" },
+  //   "albums":  { "shuffle": false, "repeat": "",    "mpris": "" },
+  //   "artists": { "shuffle": "",     "repeat": "",    "mpris": false },
+  "modes": {
+    "songs":   { "shuffle": "", "repeat": "", "mpris": "" },
+    "artists": { "shuffle": "", "repeat": "", "mpris": "" },
+    "albums":  { "shuffle": "", "repeat": "", "mpris": "" },
+    "folders": { "shuffle": "", "repeat": "", "mpris": "" }
+  },
+
+  // --- Logo (kitty only for images; symbols show on any terminal) ------------
+  // Each item: exactly ONE of symbol/image, as many as you want, mixed.
+  // symbol: free text/emoji in the picker header; color #rrggbb (empty =
+  //   theme pink); size small|normal|large (= dim|plain|bold);
+  //   position left|center|right.
+  // image: kitty window logo over the picker; file path (~ ok); transparency
+  //   0.00-1.00 (native, no white box when the PNG has alpha);
+  //   size 0-100 (0 = native); position top-left|top|top-right|left|center|
+  //   right|bottom-left|bottom|bottom-right; color = tint (needs
+  //   python3-pil, else the original is used). ONE image max per window.
+  // gif is NOT supported (use a PNG frame). On foot, images are ignored
+  // (warning) and symbols still show.
+  "logo": [
+    { "symbol": "🌸 karui-oto", "color": "#ea76cb", "size": "large", "position": "center" }
+    // { "image": "~/Imágenes/logo.png", "transparency": 0.5, "size": 20, "position": "bottom-right", "color": "" },
+  ]
+}

@@ -43,6 +43,16 @@ KEYMAP = {
 # (per-mode overrides; empty = inherit the global). It is handled
 # explicitly below, never as a generic object.
 OBJECT_KEYS = {"icons", "kitty", "foot", "shortcuts"}
+# Allowed subkeys per section: typos here used to pass silently (e.g.
+# icons.serach kept the default while the user thought it was set).
+SECTION_KEYS = {
+    "icons": {"search", "arrow", "marker", "album", "folder"},
+    "kitty": {"font", "font_size", "width", "height", "color",
+              "transparency"},
+    "foot": {"font", "font_size", "width", "height", "color",
+             "transparency"},
+    "shortcuts": {"songs", "artists", "albums", "folders", "kill"},
+}
 ARRAY_KEYS = {"hide"}
 MODES_ALLOWED_MODES = {"songs", "artists", "albums", "folders"}
 MODES_ALLOWED_KEYS = {"shuffle", "repeat", "mpris"}
@@ -207,6 +217,11 @@ def main():
                       f"(only {sorted(OBJECT_KEYS)})", file=sys.stderr)
                 return 1
             for sub, subval in value.items():
+                if sub not in SECTION_KEYS[key]:
+                    print(f"jconfig: unknown key '{key}.{sub}' in {path} "
+                          f"(valid: {sorted(SECTION_KEYS[key])})",
+                          file=sys.stderr)
+                    return 1
                 if isinstance(subval, (dict, list)):
                     print(f"jconfig: '{key}.{sub}' must be scalar in {path}",
                           file=sys.stderr)

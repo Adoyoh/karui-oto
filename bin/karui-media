@@ -21,13 +21,16 @@
 #   same thing whether the browser is open or not.
 #
 # TUNING:
-#   THROTTLE (default 0.5s, override with KARUI_MEDIA_THROTTLE=0.8) is the
+#   THROTTLE (default 0.25s, override with KARUI_MEDIA_THROTTLE=0.8) is the
 #   minimum gap between two orders reaching the player. Lower = snappier
 #   but risks mpDris queue pile-up under spam; higher = safer but laggier.
+#   The gap runs AFTER the order with the lock held, so a single press is
+#   never delayed — only repeats inside the window are dropped.
+#   `timeout 2` caps a hung bridge call so one stall cannot wedge the lock.
 # ============================================================================
 set -u
 
-THROTTLE="${KARUI_MEDIA_THROTTLE:-0.5}"
+THROTTLE="${KARUI_MEDIA_THROTTLE:-0.25}"
 LOCKDIR="/tmp/karui-oto-media.lockdir"
 PIDFILE="$LOCKDIR/pid"
 
@@ -42,7 +45,9 @@ if ! mkdir "$LOCKDIR" 2>/dev/null; then
     rm -rf "$LOCKDIR"
     mkdir "$LOCKDIR" 2>/dev/null || exit 0
 fi
-printf '%s' "$$" > "$PIDFILE"
+# If the dir vanished under us (lost a takeover race), drop this press
+# instead of running a second overlapping order.
+printf '%s' "$$" > "$PIDFILE" 2>/dev/null || exit 0
 trap 'rm -rf "$LOCKDIR"' EXIT
 
 pc_act="play-pause"; mpc_act="toggle"
@@ -56,7 +61,7 @@ esac
 # held for the whole order, so orders can never overlap or pile up.
 if command -v playerctl >/dev/null 2>&1; then
     if command -v timeout >/dev/null 2>&1; then
-        timeout 5 playerctl -p mpd "$pc_act" >/dev/null 2>&1 && {
+        timeout 2 playerctl -p mpd "$pc_act" >/dev/null 2>&1 && {
             sleep "$THROTTLE"; exit 0
         }
     else

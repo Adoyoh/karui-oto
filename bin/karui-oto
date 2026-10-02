@@ -41,7 +41,7 @@ export KO_ROOT
 
 source "$KO_ROOT/lib/common.sh"
 
-KO_VERSION="1.0.0"
+KO_VERSION="1.1.0"
 
 usage() {
     cat <<EOF
@@ -52,10 +52,10 @@ Usage: karui-oto {songs|artists|albums|folders|kill|binds|setup|doctor|version|h
   albums   album by tags shuffled (Artist — Album)
   folders  any folder subtree shuffled (direct to the disc)
   kill     stop everything and drop the daemon (0 processes)
-  binds [--copy|--apply|--remove] [comp]
-           print/generate keybinds from shortcuts.* (comp: niri hyprland
-           sway i3 gnome kde xfce cinnamon mate openbox bspwm; see
-           COMPATIBILITY.txt for support level per desktop)
+  binds [--copy|--apply|--remove|--sync] [comp]
+           print/generate keybinds from shortcuts.* (comp: niri|hyprland;
+           see COMPATIBILITY.txt). Binds auto-sync in the background
+           after each picker run, so manual --apply is rarely needed.
   setup    interactive first-run wizard (writes config.jsonc)
   doctor   read-only health check with fixes for each finding
 Config: \${KARUI_OTO_CONFIG:-~/.config/karui-oto/config.jsonc}
@@ -75,6 +75,21 @@ open_mode() {
         pkill -f "buscador_mp[d]" 2>/dev/null
     fi
     term_open "$KO_ROOT/bin/karui-oto" __pick "$modo"
+    # Best-effort background sync (shortcuts{} -> compositor): the picker
+    # window is already opening, so only a fork (~1ms) stays on the
+    # critical path. Output discarded, lock-guarded, fail-open: a sync
+    # problem can never break the picker that just opened.
+    ( binds_sync_bg ) </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null
+}
+
+# binds_sync_bg: lazy-load binds libs (keeps picker startup fast), then
+# reconcile. Runs in a throwaway subshell: parent vars (SHORTCUTS_*) are
+# inherited, nothing is exported back.
+binds_sync_bg() {
+    source "$KO_ROOT/lib/binds.sh"
+    source "$KO_ROOT/lib/bindsinstall.sh"
+    binds_sync
 }
 
 # Binds text generation lives in lib/binds.sh; file delivery (conflicts,
@@ -85,21 +100,22 @@ load_binds_libs() {
     source "$KO_ROOT/lib/bindsinstall.sh"
 }
 
-# binds [--copy|--apply|--remove] [compositor]: print (default), clipboard,
-# assisted file install, or removal. Auto-detects the compositor.
+# binds [--copy|--apply|--remove|--sync] [compositor]: print (default),
+# clipboard, assisted file install, removal, or silent reconcile.
+# Auto-detects the compositor.
 binds_cmd() {
     load_binds_libs
     local action="print" comp="" a
     for a in "$@"; do
         case "$a" in
-            --copy|--apply|--remove) action="${a#--}" ;;
-            niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm) comp="$a" ;;
-            *) die "binds: bad argument: $a (use: binds [--copy|--apply|--remove] [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm])" ;;
+            --copy|--apply|--remove|--sync) action="${a#--}" ;;
+            niri|hyprland) comp="$a" ;;
+            *) die "binds: bad argument: $a (use: binds [--copy|--apply|--remove|--sync] [niri|hyprland])" ;;
         esac
     done
     if [ -z "$comp" ]; then
         comp="$(detect_compositor)" \
-            || die "cannot detect desktop (set it: binds [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm])"
+            || die "cannot detect desktop (set it: binds [niri|hyprland])"
     fi
     is_comp "$comp" || die "unknown desktop: $comp (valid: $SUPPORTED_COMPS)"
     case "$action" in
@@ -117,22 +133,24 @@ binds_cmd() {
         apply)
             [ -t 0 ] || die "binds --apply needs an interactive terminal (refusing to pipe into your config)"
             binds_apply_flow "$comp" ;;
+        sync)
+            # Manual reconcile: same routine the background hook runs after
+            # every picker. Visible output, backup + validation included.
+            binds_sync "$comp" && printf 'binds in sync (%s)\n' "$comp" >&2 ;; 
         remove)
-            local file bak
-            file="$(comp_file "$comp")"
-            case "$comp" in
-                gnome|cinnamon|mate|kde|xfce)
-                    bak="$(backup_settings "$comp")"
+            local bak f
+            for f in $(comp_files_all "$comp"); do
+                [ -f "$f" ] || continue
+                if grep -qF -- "$(mark_open "$comp")" "$f" \
+                    || grep -qF -- "$(mark_open_rules "$comp")" "$f"; then
+                    bak="$(backup_file "$f")"
                     printf 'backup: %s\n' "$bak" >&2
-                    remove_block "$comp" "$file"
-                    printf 'removed our karui-oto shortcuts from %s (backup kept)\n' "$comp" >&2 ;;
-                *)
-                    [ -f "$file" ] || die "config file not found: $file"
-                    bak="$(backup_file "$file")"
-                    printf 'backup: %s\n' "$bak" >&2
-                    remove_block "$comp" "$file"
-                    printf 'removed our block from %s (backup kept)\n' "$file" >&2 ;;
-            esac ;;
+                    remove_block "$comp" "$f"
+                    printf 'removed our blocks from %s (backup kept)\n' "$f" >&2
+                fi
+            done
+            printf 'remove done (binds + window rules)\n' >&2
+            printf 'reload: %s (applies the removal live)\n' "$(reload_hint "$comp")" >&2 ;;
     esac
 }
 
@@ -157,6 +175,12 @@ binds_preflight() {
     done
     [ "$any" -eq 1 ] || die "no shortcuts assigned (fill shortcuts.* in config first)"
     [ "$bad" -eq 0 ] || die "resolve conflicts first (change shortcuts.* or free those binds)"
+    # Floating-picker rules (same TERM_CLASS anchor): foreign rule = warn-only,
+    # ours gets replaced along with the binds. Never blocks the install.
+    local _rline
+    if _rline="$(rules_foreign "$comp" 2>/dev/null)"; then
+        printf 'note: a window rule already matches our terminal class:\n  %s\nours will be added alongside it (remove the other one if the picker misbehaves)\n' "$_rline" >&2
+    fi
     # Media keys (fixed XF86 table, always installed): warn-only, never block.
     # Desktops often pre-bind XF86AudioPlay system-wide; ours coexists and
     # --remove only deletes our entries, so a foreign bind is a note, not fatal.
@@ -172,27 +196,40 @@ binds_preflight() {
 }
 
 # Full --apply flow: preflight -> stage -> show -> confirm -> apply.
+# Binds AND floating-picker rules travel together (same consent + backup).
+# A missing compositor file is NOT fatal: the program is already installed
+# at this point, so we print a guided fallback (snippet + path + --copy)
+# instead of an error that looks like a failed install.
 binds_apply_flow() {
-    local comp="$1" file tmp ans
+    local comp="$1" file tmp rtmp ans
     file="$(comp_file "$comp")"
-    case "$comp" in
-        gnome|cinnamon|mate|kde|xfce) : ;; # live stores: no file needed
-        *) [ -f "$file" ] || die "config file not found: $file (paste manually: karui-oto binds $comp)" ;;
-    esac
+    if [ ! -f "$file" ]; then
+        printf 'program installed OK; binds not installed: no %s config at %s\n' "$comp" "$file" >&2
+        printf 'create it (or check XDG_CONFIG_HOME), then:\n' >&2
+        printf '  karui-oto binds --copy %s   # snippet to clipboard, paste manually\n' "$comp" >&2
+        printf '  karui-oto binds %s          # print the snippet any time\n' "$comp" >&2
+        cmd_binds "$comp"
+        return 0
+    fi
     binds_preflight "$comp"
-    tmp="$(mktemp)"
+    tmp="$(mktemp)"; rtmp="$(mktemp)"
     gen_binds_block "$comp" > "$tmp"
+    gen_rules_block "$comp" > "$rtmp"
     printf 'Will apply to %s:\n' "$file" >&2
     sed 's/^/  /' "$tmp" >&2
+    if [ -s "$rtmp" ]; then
+        printf 'Plus floating-picker window rules:\n' >&2
+        sed 's/^/  /' "$rtmp" >&2
+    fi
     printf 'Yours stays safe: backup first, --remove reverses. Reload: %s\n' "$(reload_hint "$comp")" >&2
     printf 'This installs your shortcuts so the pickers open with your keys. Safe to say yes: it keeps a backup you can undo.\n' >&2
     read -r -p "Apply? [y/N] " ans
     case "$ans" in
         y|Y|yes|YES) : ;;
-        *) rm -f "$tmp"; die "aborted, nothing changed" ;;
+        *) rm -f "$tmp" "$rtmp"; die "aborted, nothing changed" ;;
     esac
-    binds_apply "$comp" "$tmp"
-    rm -f "$tmp"
+    binds_apply "$comp" "$tmp" "$rtmp"
+    rm -f "$tmp" "$rtmp"
 }
 
 main() {

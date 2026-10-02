@@ -7,17 +7,19 @@
 #   cmd_binds (print) and gen_binds_block (raw lines for --apply).
 #   bindsinstall.sh (files/markers/backups) consumes this; it never writes.
 #
+# SCOPE: niri + hyprland only (other desktops were cut: their configs differ
+# too much to track reliably; git history keeps the old translators).
+#
 # CANONICAL FORM (validated in common.sh before reaching here):
 #   Mod+O, Mod+Shift+P, Ctrl+Alt+T, bare F12 / XF86AudioPlay.
 #   "Mod" means the compositor's main modifier ($mainMod/$mod, usually Super).
 #
 # SUPPORTED TARGETS (see COMPATIBILITY.txt):
-#   Text configs (file append): niri hyprland sway i3 openbox bspwm
-#   Live settings (commands):   gnome kde xfce cinnamon mate
+#   Text configs (file append): niri hyprland
 # ============================================================================
 
 # All known targets in stable order (used by help/setup/completion).
-SUPPORTED_COMPS="niri hyprland sway i3 gnome kde xfce cinnamon mate openbox bspwm"
+SUPPORTED_COMPS="niri hyprland"
 
 bind_title() {  # mode -> overlay title (niri)
     case "$1" in
@@ -43,16 +45,6 @@ detect_compositor() {
     case "${d,,}" in
         *niri*) printf 'niri' ;;
         *hypr*) printf 'hyprland' ;;
-        *sway*) printf 'sway' ;;
-        *i3*)   printf 'i3' ;;
-        *gnome*) printf 'gnome' ;;
-        *kde*|*plasma*) printf 'kde' ;;
-        *xfce*) printf 'xfce' ;;
-        *cinnamon*) printf 'cinnamon' ;;
-        *mate*) printf 'mate' ;;
-        *lxqt*) printf 'lxqt' ;;
-        *openbox*) printf 'openbox' ;;
-        *bspwm*) printf 'bspwm' ;;
         *) return 1 ;;
     esac
 }
@@ -63,6 +55,35 @@ is_comp() {
         *" $1 "*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# hypr_variant: lua | legacy. Hyprland >= 0.55 speaks Lua (hyprland.lua);
+# older ones speak the legacy hyprland.conf. Autodetect by files first
+# (a stray legacy .conf next to a live .lua must not win), then by the
+# installed binary version, defaulting to lua for fresh installs.
+hypr_variant() {
+    local base="${XDG_CONFIG_HOME:-$HOME/.config}"
+    [ -f "$base/hypr/hyprland.lua" ] && { printf 'lua'; return 0; }
+    [ -f "$base/hypr/hyprland.conf" ] && { printf 'legacy'; return 0; }
+    if command -v hyprland >/dev/null 2>&1; then
+        local ver maj min
+        ver="$(hyprland --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n 1)"
+        maj="${ver%%.*}"; min="${ver#*.}"
+        if [ -n "$maj" ] && [ -n "$min" ] \
+            && { [ "$maj" -ge 1 ] || { [ "$maj" -eq 0 ] && [ "$min" -ge 55 ]; }; }; then
+            printf 'lua'; return 0
+        fi
+        printf 'legacy'; return 0
+    fi
+    printf 'lua'
+}
+
+# hypr_comment: line-comment token for generated hyprland text.
+# Lua (-- ) on 0.55+ setups; legacy hash (#) before that. NOTE: a bare #
+# is NOT a comment in Lua (length operator) — emitting it into hyprland.lua
+# is a hard config error, so every generated comment goes through here.
+hypr_comment() {
+    if [ "$(hypr_variant)" = "lua" ]; then printf -- '--'; else printf '#'; fi
 }
 
 # hyprland: "Mod+Shift+P" -> mods "$mainMod SHIFT", key "P".
@@ -84,120 +105,44 @@ hypr_parts() {
     printf '%s,%s' "${mods% }" "$key"
 }
 
-# sway/i3: "Mod+Shift+P" -> "$mod+Shift+p". Bare tokens (F12, XF86*)
-# pass through untouched (keysyms are case-sensitive there).
-sway_key() {
-    local combo="$1"
-    case "$combo" in
-        *+*) : ;;
-        *) printf '%s' "$combo"; return 0 ;;
-    esac
-    local first="${combo%%+*}" key="${combo##*+}"
-    [ "$first" = "Mod" ] && first="\$mod"
-    # "${combo%$key}" keeps the trailing "+" of the mods part, so join
-    # WITHOUT adding another one (else "$mod++o").
-    printf '%s%s' "${combo%$key}" "${key,,}" | sed "s/^[^+]*/$first/"
-}
-# NOTE: the sed above swaps only the first token; mods keep their case
-# (sway convention: $mod+Shift+p).
-
-# GNOME/XFCE/Cinnamon/MATE (gsettings/xfconf): "Mod+Shift+P" -> "<Super><Shift>p".
-# Bare keys (F12, XF86AudioPlay) pass through. Letters go lowercase.
-gnome_key() {
-    local combo="$1" out="" key mods
-    case "$combo" in
-        *+*) : ;;
-        *) printf '%s' "$combo"; return 0 ;;
-    esac
-    key="${combo##*+}"; mods="${combo%+$key}"
-    out="$(printf '%s' "$mods" | sed -e 's/Mod/<Super>/g' -e 's/Shift/<Shift>/g' -e 's/Ctrl/<Ctrl>/g' -e 's/Alt/<Alt>/g' -e 's/+//g')"
-    case "$key" in XF86*|F[0-9]*|space|Tab|Escape|Return|BackSpace|Delete|Insert|Home|End|Page_Up|Page_Down) printf '%s%s' "$out" "$key" ;;
-        *) printf '%s%s' "$out" "${key,,}" ;; esac
-}
-
-# KDE (kglobalaccel): "Mod+Shift+P" -> "Meta+Shift+P". Letters stay UPPER.
-kde_key() {
-    local combo="$1" out
-    out="$(printf '%s' "$combo" | sed -e 's/Mod/Meta/g')"
-    printf '%s' "$out"
-}
-
-# Openbox (rc.xml): "Mod+Shift+P" -> "W-S-P". Bare keys pass through.
-openbox_key() {
-    local combo="$1" out
-    case "$combo" in
-        *+*) : ;;
-        *) printf '%s' "$combo"; return 0 ;;
-    esac
-    out="$(printf '%s' "$combo" | sed -e 's/Mod/W/g' -e 's/Shift/S/g' -e 's/Ctrl/C/g' -e 's/Alt/A/g' -e 's/\+/-/g')"
-    printf '%s' "$out"
-}
-
-# sxhkd (bspwm): "Mod+Shift+P" -> "super+shift+p". Bare keysyms (XF86*, F*)
-# pass through untouched (case-sensitive there); other bare words lowercase.
-sxhkd_key() {
-    local combo="$1" out key mods
-    case "$combo" in
-        *+*) : ;;
-        XF86*|F[0-9]*) printf '%s' "$combo"; return 0 ;;
-        *) printf '%s' "${combo,,}"; return 0 ;;
-    esac
-    key="${combo##*+}"; mods="${combo%+$key}"
-    out="$(printf '%s' "$mods" | sed -e 's/Mod/super/g' -e 's/Shift/shift/g' -e 's/Ctrl/ctrl/g' -e 's/Alt/alt/g' -e 's/\+/+/g')"
-    case "$key" in XF86*) printf '%s+%s' "$out" "$key" ;;
-        *) printf '%s+%s' "$out" "${key,,}" ;; esac
-}
-
 bind_niri() {  # <mode> <combo>
     printf '    %s hotkey-overlay-title="%s" { spawn "bash" "-c" "~/.local/bin/karui-oto %s"; }\n' \
         "$2" "$(bind_title "$1")" "$1"
 }
 
-bind_hyprland() {  # <mode> <combo>
+# hypr_lua_head <mods> <key>: legacy hypr_parts output ("$mainMod SHIFT", "P")
+# -> Lua bind head expression: 'mainMod .. " + SHIFT" .. " + P"'.
+# Bare keys (no mods, e.g. XF86AudioNext) become '"XF86AudioNext"'.
+hypr_lua_head() {
+    local mods="$1" key="$2" t out=""
+    for t in $mods; do
+        [ "$t" = '$mainMod' ] && t='mainMod'
+        [ -z "$out" ] && out="$t" || out="$out .. \" + $t\""
+    done
+    if [ -z "$out" ]; then printf '"%s"' "$key";
+    else printf '%s .. " + %s"' "$out" "$key"; fi
+}
+
+bind_hyprland() {  # <mode> <combo> (legacy or Lua by autodetect)
+    if [ "$(hypr_variant)" = "lua" ]; then bind_hyprland_lua "$@"; return 0; fi
     # Empty mods ("F12") is valid hyprland ("bind = , F12, ...").
     local parts key mods
     parts="$(hypr_parts "$2")"
     key="${parts##*,}"; mods="${parts%,*}"
-    printf 'bind = %s, %s, exec, ~/.local/bin/karui-oto %s\n' "$mods" "$key" "$1"
+    printf 'bind = %s, %s, exec, %s/.local/bin/karui-oto %s\n' "$mods" "$key" "$HOME" "$1"
 }
 
-bind_sway() {  # <mode> <combo> (i3 shares the shape; --no-startup-id added by caller)
-    printf 'bindsym %s exec ~/.local/bin/karui-oto %s\n' "$(sway_key "$2")" "$1"
-}
-
-# DE printers: one line per mode with the native key + exact command.
-# GNOME/Cinnamon/MATE share gsettings syntax; XFCE uses xfconf key names
-# (same <Super> style); KDE uses Meta+ form; Openbox/sxhkd are file lines.
-bind_gnome() {  # <mode> <combo>
-    printf '# %s: key %s -> command: ~/.local/bin/karui-oto %s (Settings > Keyboard > Custom Shortcuts)\n' \
-        "$1" "$(gnome_key "$2")" "$1"
-}
-
-bind_cinnamon() { bind_gnome "$@"; }
-bind_mate() { bind_gnome "$@"; }
-
-bind_kde() {  # <mode> <combo>
-    printf '# %s: key %s -> command: ~/.local/bin/karui-oto %s (System Settings > Shortcuts > Custom)\n' \
-        "$1" "$(kde_key "$2")" "$1"
-}
-
-bind_xfce() {  # <mode> <combo>
-    printf '# %s: key %s -> command: ~/.local/bin/karui-oto %s (Settings > Keyboard > Application Shortcuts)\n' \
-        "$1" "$(gnome_key "$2")" "$1"
-}
-
-bind_openbox() {  # <mode> <combo> (rc.xml keybind fragment)
-    printf '    <!-- karui-oto %s: -->\n    <keybind key="%s"><action name="Execute"><command>~/.local/bin/karui-oto %s</command></action></keybind>\n' \
-        "$1" "$(openbox_key "$2")" "$1"
-}
-
-bind_bspwm() {  # <mode> <combo> (sxhkdrc fragment)
-    printf '%s\n    ~/.local/bin/karui-oto %s\n' "$(sxhkd_key "$2")" "$1"
+bind_hyprland_lua() {  # <mode> <combo>
+    # exec_cmd runs without tilde expansion: absolute $HOME, expanded now.
+    local parts key mods
+    parts="$(hypr_parts "$2")"
+    key="${parts##*,}"; mods="${parts%,*}"
+    printf 'hl.bind(%s, hl.dsp.exec_cmd("%s/.local/bin/karui-oto %s"))\n' \
+        "$(hypr_lua_head "$mods" "$key")" "$HOME" "$1"
 }
 
 # gen_binds_block <comp>: raw bind lines (no header) for printing/applying.
-# Empty shortcuts become "# ..." placeholders (comment-safe everywhere;
-# openbox lines are XML comments, still safe).
+# Empty shortcuts become comment placeholders (comment-safe in both syntaxes).
 gen_binds_block() {
     local comp="$1" mode combo var
     for mode in songs artists albums folders kill; do
@@ -206,19 +151,12 @@ gen_binds_block() {
         if [ -z "$combo" ]; then
             if [ "$comp" = "niri" ]; then
                 printf '// %s: (no shortcut — empty in config)\n' "$mode"
-            elif [ "$comp" = "openbox" ]; then
-                printf '<!-- %s: (no shortcut — empty in config) -->\n' "$mode"
             else
-                printf '# %s: (no shortcut — empty in config)\n' "$mode"
+                printf '%s %s: (no shortcut — empty in config)\n' "$(hypr_comment)" "$mode"
             fi
             continue
         fi
-        if [ "$comp" = "i3" ]; then
-            printf 'bindsym %s exec --no-startup-id ~/.local/bin/karui-oto %s\n' \
-                "$(sway_key "$combo")" "$mode"
-        else
-            "bind_$comp" "$mode" "$combo"
-        fi
+        "bind_$comp" "$mode" "$combo"
     done
     # Media keys (XF86): always installed, same player bridge everywhere.
     # Real lines (not hints) so --apply/--remove roundtrips them like modes.
@@ -235,24 +173,36 @@ gen_media_block() {
                 printf '    %s hotkey-overlay-title="%s" { spawn "bash" "-c" "~/.local/bin/karui-media %s"; }\n' \
                     "$key" "$(bind_title "$name")" "$cmd" ;;
             hyprland)
-                printf 'bindel = , %s, exec, ~/.local/bin/karui-media %s\n' "$key" "$cmd" ;;
-            sway)
-                printf 'bindsym %s exec ~/.local/bin/karui-media %s\n' "$key" "$cmd" ;;
-            i3)
-                printf 'bindsym %s exec --no-startup-id ~/.local/bin/karui-media %s\n' "$key" "$cmd" ;;
-            gnome|cinnamon|mate)
-                printf '# %s: key %s -> command: ~/.local/bin/karui-media %s\n' "$name" "$key" "$cmd" ;;
-            kde)
-                printf '# %s: key %s -> command: ~/.local/bin/karui-media %s\n' "$name" "$key" "$cmd" ;;
-            xfce)
-                printf '# %s: key %s -> command: ~/.local/bin/karui-media %s\n' "$name" "$key" "$cmd" ;;
-            openbox)
-                printf '    <!-- karui-oto %s: -->\n    <keybind key="%s"><action name="Execute"><command>~/.local/bin/karui-media %s</command></action></keybind>\n' \
-                    "$name" "$key" "$cmd" ;;
-            bspwm)
-                printf '%s\n    ~/.local/bin/karui-media %s\n' "$key" "$cmd" ;;
+                if [ "$(hypr_variant)" = "lua" ]; then
+                    printf 'hl.bind("%s", hl.dsp.exec_cmd("%s/.local/bin/karui-media %s"), { locked = true, repeating = true })\n' \
+                        "$key" "$HOME" "$cmd"
+                else
+                    printf 'bindel = , %s, exec, %s/.local/bin/karui-media %s\n' "$key" "$HOME" "$cmd"
+                fi ;;
         esac
     done <<<"$MEDIA_TABLE"
+}
+
+# gen_rules_block <comp>: floating-picker window rules anchored at TERM_CLASS.
+# Installed ALWAYS together with the binds (same apply flow, own markers).
+# The picker then opens big and centered instead of squeezed into tiling.
+# Empty output = compositor without automatic float (binds only, note it).
+gen_rules_block() {
+    local comp="$1" cls="${TERM_CLASS:-buscador_mpd}"
+    case "$comp" in
+        niri)
+            printf 'window-rule {\n    match app-id="%s"\n    open-floating true\n    default-column-width { fixed 1200; }\n    default-window-height { fixed 700; }\n}\n' "$cls" ;;
+        hyprland)
+            if [ "$(hypr_variant)" = "lua" ]; then
+                # NOTE: size takes exact pixels ({ 1200, 700 }): percent
+                # strings are silently ignored by hl.window_rule in 0.55
+                # (verified live: { 1100, 650 } applies, "90% 90%" doesn't).
+                printf 'hl.window_rule({\n    name = "karui-oto",\n    match = { class = "%s" },\n    float = true,\n    size = { 1200, 700 },\n    center = true,\n})\n' "$cls"
+            else
+                printf 'windowrule = float,class:%s\nwindowrule = size 90%% 90%%,class:%s\nwindowrule = center,class:%s\n' \
+                    "$cls" "$cls" "$cls"
+            fi ;;
+    esac
 }
 
 # cmd_binds [compositor]: header + block to stdout. Used by `binds`,
@@ -265,13 +215,24 @@ cmd_binds() {
     fi
     is_comp "$comp" || die "unknown desktop: $comp (valid: $SUPPORTED_COMPS)"
     if [ "$comp" = "niri" ]; then
-        printf '// karui-oto binds for %s (generated; paste into your compositor config)\n' "$comp"
-    elif [ "$comp" = "openbox" ]; then
-        printf '<!-- karui-oto binds for %s (generated; paste inside <keyboard> in rc.xml) -->\n' "$comp"
-    elif [ "$comp" = "gnome" ] || [ "$comp" = "cinnamon" ] || [ "$comp" = "mate" ] || [ "$comp" = "kde" ] || [ "$comp" = "xfce" ]; then
-        printf '# karui-oto binds for %s (generated; add in Settings > Keyboard > Custom Shortcuts)\n' "$comp"
+        printf '// karui-oto binds for %s (generated; binds go inside binds{}, rules are top-level)\n' "$comp"
+    elif [ "$(hypr_variant)" = "lua" ]; then
+        printf -- '-- karui-oto binds for %s (Lua syntax; append to hyprland.lua)\n' "$comp"
     else
-        printf '# karui-oto binds for %s (generated; paste into your compositor config)\n' "$comp"
+        printf '# karui-oto binds for %s (legacy syntax; paste into hyprland.conf)\n' "$comp"
     fi
     gen_binds_block "$comp"
+    # Floating-picker rules travel with the binds (same file/block flow).
+    local rules
+    rules="$(gen_rules_block "$comp")"
+    if [ -n "$rules" ]; then
+        if [ "$comp" = "niri" ]; then
+            printf '// window rules for %s (top-level, outside binds{})\n' "$comp"
+        elif [ "$comp" = "hyprland" ]; then
+            printf '%s window rules for %s (floating picker)\n' "$(hypr_comment)" "$comp"
+        else
+            printf '# window rules for %s (floating picker)\n' "$comp"
+        fi
+        printf '%s\n' "$rules"
+    fi
 }

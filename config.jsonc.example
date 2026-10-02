@@ -32,7 +32,7 @@
     "width": 100,                     // tuned to match kitty presence
     "height": 24,
     "color": "",                      // "" = theme; "#rrggbb" + auto contrast
-    "transparency": 1.0               // 0.00–1.00, WHOLE window (foot has no per-color alpha: lower washes the text)
+    "transparency": 0.85              // 0.00–1.00, WHOLE window (foot has no per-color alpha: lower washes the text)
   },
 
   // Looks (shared)
@@ -53,8 +53,9 @@
 
   // --- Shortcuts: generate compositor binds from here ------------------------
   // All EMPTY = unassigned (default state). To assign one: put your combo
-  // right of the key, then run: karui-oto binds [niri|hyprland|sway|i3]
-  // and paste the output into your compositor config.
+  // right of the key and save: the next picker run syncs it into your
+  // compositor automatically (niri|hyprland). `karui-oto binds [comp]`
+  // prints the snippet any time for manual pasting.
   // Format: Mod+O, Mod+Shift+P, Ctrl+Alt+T (empty string = unassigned).
   "shortcuts": {
     "songs": "",

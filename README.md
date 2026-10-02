@@ -34,7 +34,7 @@ git clone https://github.com/Adoyoh/karui-oto.git && cd karui-oto
 
 1. Copia el árbol a `~/.local/share/karui-oto/` + symlinks en `~/.local/bin/`.
 2. Crea `~/.config/karui-oto/config.jsonc` **solo si no existe** (jamás la pisa).
-3. Imprime qué pegar en tu compositor (ver `binds/`: niri, hyprland, sway, i3).
+3. Imprime qué pegar en tu compositor (ver `binds/`: niri, hyprland).
 
 Alternativas: clonar a `~/apps/` y usar rutas absolutas en los binds (cero
 instalación), o symlink manual. Desinstalar: `./uninstall.sh [--purge] [comp]`
@@ -49,10 +49,16 @@ el bloque `"shortcuts"` viene activo-vacío (sin asignar); pon tus combos
 (`Mod+O`, `Mod+Shift+P`; string vacío = sin atajo) y corre:
 
 ```sh
-karui-oto binds            # autodetecta niri|hyprland|sway|i3
+karui-oto binds            # autodetecta niri|hyprland
 karui-oto binds hyprland   # o explicita
 karui-oto binds --copy     # al portapapeles (o avisa si no hay wl-copy/xclip)
 ```
+
+No necesitas aplicarlos a mano: cada vez que abres un picker, karui-oto
+sincroniza tus `shortcuts{}` con el compositor en segundo plano (backup +
+bloque marcado, `--remove` lo quita). Edita el jsonc, guarda, y a la
+siguiente pulsación ya funciona. `karui-oto binds --apply` sigue existiendo
+para hacerlo a mano con confirmación.
 
 Sin tocar archivos a mano, `setup` te ofrece aplicarlos al final, o directo:
 `karui-oto binds --apply` (pide confirmación, backup + bloque marcado,
@@ -63,16 +69,19 @@ cada uno con el mismo atajo (`songs` = `Mod+O`):
 # niri (dentro de binds {}):
 Mod+O hotkey-overlay-title="karui-oto: search song" { spawn "bash" "-c" "~/.local/bin/karui-oto songs"; }
 ```
-```ini
-# hyprland.conf:
-bind = $mainMod, O, exec, ~/.local/bin/karui-oto songs
+```lua
+-- hyprland.lua (>= 0.55, Lua; legacy hyprland.conf below for older).
+-- Paths go absolute because Lua exec_cmd does not expand ~:
+hl.bind(mainMod .. " + O", hl.dsp.exec_cmd("/home/tu-usuario/.local/bin/karui-oto songs"))
 ```
-```sway
-# sway / i3 (i3 suma exec --no-startup-id):
-bindsym $mod+o exec ~/.local/bin/karui-oto songs
+```ini
+# hyprland.conf (legacy, < 0.55):
+bind = $mainMod, O, exec, ~/.local/bin/karui-oto songs
 ```
 
 Pega la salida en tu compositor. `binds/` trae ejemplos completos a mano.
+Soportados: niri e hyprland (otros escritorios fueron recortados; el historial
+git conserva sus traductores por si vuelven algún día).
 
 ## Configuración (`~/.config/karui-oto/config.jsonc`)
 

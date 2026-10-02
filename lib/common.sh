@@ -86,7 +86,7 @@ defaults() {
     FOOT_WIDTH="100"              # tuned to match kitty presence
     FOOT_HEIGHT="24"
     FOOT_COLOR=""                 # "" = theme; "#rrggbb" + auto contrast
-    FOOT_TRANSPARENCY="1.0"      # 0.00–1.00, WHOLE window (foot has no
+    FOOT_TRANSPARENCY="0.85"     # 0.00–1.00, WHOLE window (foot has no
                                   # per-color alpha: lower washes the text)
     WIN_PAD="8"                   # inner padding (advanced; no jsonc knob)
     THEME="karui-dark"            # file in themes/<name>.sh
@@ -345,6 +345,10 @@ validate() {
     case "$TERMINAL" in kitty|foot) : ;;
         *) die "terminal='$TERMINAL' invalid (valid: kitty foot)" ;;
     esac
+    # app-id anchor: compositor rules and foot -a match on this. Spaces or
+    # odd characters break matching silently, so the charset is restricted.
+    [[ "${TERM_CLASS:-}" =~ ^[A-Za-z0-9_.-]+$ ]] \
+        || die "term_class='${TERM_CLASS:-}' invalid (use letters, digits, _ . - only)"
     for b in SHUFFLE REPEAT MPRIS; do
         case "${!b}" in true|false) : ;;
             *) die "$b='${!b}' invalid (valid: true false)" ;;
@@ -363,6 +367,18 @@ validate() {
     done
     [[ "${MIN_TRACKS:-1}" =~ ^[0-9]+$ ]] && [ "${MIN_TRACKS:-1}" -ge 1 ] \
         || die "min_tracks='${MIN_TRACKS:-}' invalid (integer >= 1)"
+    # hide[]: every pattern must compile. An invalid regex would blow up the
+    # list-building grep at runtime with no clue which item broke it.
+    local _hitem _hidx=0 _harr
+    local IFS=$'\x1f'
+    read -ra _harr <<<"${HIDE:-}"
+    for _hitem in "${_harr[@]}"; do
+        _hidx=$((_hidx + 1))
+        [ -n "$_hitem" ] || continue
+        printf '' | grep -vE "$_hitem" >/dev/null 2>&1
+        [ "$?" -le 1 ] || die "hide item #$_hidx invalid regex: $_hitem"
+    done
+    IFS=$' \t\n'
     # Logo[] (kitty-only images, universal symbols): strict per item.
     # Symbols: non-empty text; color empty (= theme pink) or #rrggbb;
     # size empty/normal/small/large; position empty/left/center/right.

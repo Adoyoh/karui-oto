@@ -82,30 +82,32 @@ cmd_doctor() {
         && ok "font present: $FONT" \
         || warn "font missing: $FONT (falls back; install it or change font)"
 
-    # 5. Binds: installed? conflicts? (file targets need the config file;
-    # live stores query gsettings/xfconf/kglobalaccel directly).
+    # 5. Binds: installed? conflicts? drift? (file targets need the config
+    # file to be readable).
     local comp
     comp="$(detect_compositor 2>/dev/null)" || comp=""
     if [ -z "$comp" ]; then
-        printf '[INFO] desktop not detected: binds check skipped (run: karui-oto binds [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm])\n'
+        printf '[INFO] desktop not detected: binds check skipped (run: karui-oto binds [niri|hyprland])\n'
     else
         local file mode combo var line
         file="$(comp_file "$comp" 2>/dev/null)"
-        case "$comp" in
-            gnome|cinnamon|mate)
-                command -v gsettings >/dev/null 2>&1 \
-                    || { printf '[INFO] gsettings missing: %s binds check skipped\n' "$comp"; return 0; } ;;
-            kde) : ;;
-            xfce)
-                command -v xfconf-query >/dev/null 2>&1 \
-                    || { printf '[INFO] xfconf-query missing: xfce binds check skipped\n'; return 0; } ;;
-            *)
-                if [ ! -r "$file" ]; then
-                    printf '[INFO] config file unreadable: %s (binds check skipped)\n' "$file"
-                    printf 'result: %s ok, %s warnings, %s failures\n' "$SP_OK" "$SP_WARN" "$SP_FAIL" >&2
-                    [ "$SP_FAIL" -eq 0 ]; return
-                fi ;;
-        esac
+        if [ "$comp" = "hyprland" ]; then
+            printf '[INFO] hyprland syntax: %s (%s)\n' "$(hypr_variant)" "$file"
+            if command -v hyprland >/dev/null 2>&1; then
+                local _hv _hmaj _mmin _is_lua=0
+                _hv="$(hyprland --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n 1)"
+                _hmaj="${_hv%%.*}"; _mmin="${_hv#*.}"
+                { [ "$_hmaj" -ge 1 ] || { [ "$_hmaj" -eq 0 ] && [ "$_mmin" -ge 55 ]; }; } 2>/dev/null && _is_lua=1
+                if [ "$_is_lua" = "1" ] && [ "$(hypr_variant)" != "lua" ]; then
+                    warn "hyprland $_hv speaks Lua but only legacy hyprland.conf found (binds would fail: run setup/apply to migrate to hyprland.lua)"
+                fi
+            fi
+        fi
+        if [ ! -r "$file" ]; then
+            printf '[INFO] config file unreadable: %s (binds check skipped)\n' "$file"
+            printf 'result: %s ok, %s warnings, %s failures\n' "$SP_OK" "$SP_WARN" "$SP_FAIL" >&2
+            [ "$SP_FAIL" -eq 0 ]; return
+        fi
             # need binds_conflict from bindsinstall (translators already here)
             local checked=0
             for mode in songs artists albums folders kill; do
@@ -114,7 +116,7 @@ cmd_doctor() {
                 checked=1
                 if line="$(binds_conflict "$comp" "$combo" 2>/dev/null)"; then
                     case "$line" in
-                        *karui-oto*|*karui-media*|*custom-keybindings*|*kglobalaccel*|*/commands/custom/*)
+                        *karui-oto*|*karui-media*)
                             ok "bind installed: $combo -> $mode ($comp)" ;;
                         *) warn "conflict: $combo already runs: $line -- change shortcuts.* or free it" ;;
                     esac
@@ -137,6 +139,15 @@ cmd_doctor() {
             [ "$_found" -eq 3 ] \
                 && ok "media keys installed: XF86AudioNext/Prev/Play -> karui-media ($comp)" \
                 || warn "media keys missing ($_found/3 in $comp). Fix: karui-oto binds --apply $comp"
+            # Drift: installed blocks vs shortcuts{} (orphans from emptied or
+            # moved combos). The background hook heals this on next picker
+            # run; still reported so manual runs can see it. Fix: --sync.
+            local _drift
+            if _drift="$(binds_drift "$comp" 2>/dev/null)"; then
+                ok "binds in sync with shortcuts{} ($comp)"
+            else
+                warn "binds drift detected ($comp): ${_drift//$'\n'/; } -- fix: karui-oto binds --sync $comp"
+            fi
     fi
 
     # 6. Logo (kitty-only images, universal symbols). Config already passed

@@ -1,6 +1,34 @@
 # CHANGELOG — format: `## [version] - date` (newest on top)
 
-## [Unreleased]
+## [1.1.0] - 2026-10-02
+- BREAKING: compositors cut to niri + hyprland (sway/i3/openbox/bspwm and
+  the gnome/kde/xfce/cinnamon/mate live backends removed; git history
+  keeps them). All lists, docs and examples updated.
+- Auto-sync: every picker run reconciles shortcuts{} into the compositor
+  in the background after opening (~1ms fork on the critical path, work
+  while you browse). Edit + save = working from the next keypress; no
+  manual --apply needed. Fail-open: sync never blocks the picker.
+  Unclosed marker ranges warn instead of deleting to EOF.
+- Validation gaps closed: unknown section subkeys die in jconfig
+  (icons/kitty/foot/shortcuts), term_class charset restricted (app-id
+  safe), every hide[] pattern must compile (indexed error).
+- Foot transparency default 1.0 -> 0.85 (whole-window alpha; example updated).
+- karui-media snappier: THROTTLE 0.5s -> 0.25s (gap runs post-order under
+  lock, single presses never delayed), hung-bridge timeout 5s -> 2s.
+  KARUI_MEDIA_THROTTLE override unchanged as instant rollback.
+- Lock-takeover race hardened (loser drops the press instead of doubling).
+- Sync reloads dismiss Hyprland-internal popups (pre-existing config
+  notices are not ours); notification centers untouched.
+- Hyprland >= 0.55 (Lua): autodetect hyprland.lua vs legacy hyprland.conf,
+  Lua emitters (binds + media with locked+repeating), Lua-aware conflict
+  scan, live validate (hyprctl reload + configerrors, auto-restore).
+  Missing config = guided fallback, never a fatal "not found".
+- Floating picker rules installed always with the binds (same backup):
+  niri open-floating + fixed size (top-level window-rule), hyprland float +
+  90% + center (Lua window_rule / legacy windowrule). Own marked section,
+  --remove and uninstall.sh strip both blocks.
+- Setup/doctor UX: explicit "program installed OK" vs "binds pending"
+  status lines; doctor reports the hyprland variant in use.
 - Desktop support beyond tiling WMs: gnome/kde/xfce/cinnamon/mate
   (gsettings/kwriteconfig/xfconf backends with backup + conflict check),
   openbox (rc.xml <keyboard> insert) and bspwm (sxhkdrc). New translators

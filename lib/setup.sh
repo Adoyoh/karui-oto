@@ -49,6 +49,9 @@ combo_ok() {
 
 # ask_shortcut <VAR> <mode>: combo with canonical validation + conflict
 # check against the compositor file (read-only). Empty skips (unassigned).
+# Own installed binds are NOT conflicts: same mode+combo is kept silently,
+# ours elsewhere just notes the re-apply will move it. Only foreign binds
+# loop back with a suggestion.
 ask_shortcut() {
     local var="$1" mode="$2" ans comp cfile line
     comp="$(detect_compositor 2>/dev/null)" || comp=""
@@ -61,10 +64,19 @@ ask_shortcut() {
             continue
         }
         if [ -n "$comp" ] && line="$(binds_conflict "$comp" "$ans" 2>/dev/null)"; then
-            printf '  already bound here:\n  %s\n' "$line" >&2
-            printf '  free suggestion here: %s\n' \
-                "$(suggest_combo "$comp" "$(comp_file "$comp")" 2>/dev/null)" >&2
-            continue
+            case "$line" in
+                *karui-oto*)
+                    if [[ "$line" == *"karui-oto $mode"* ]]; then
+                        printf '  keeping your installed bind: %s\n' "$ans" >&2
+                    else
+                        printf '  yours elsewhere (%s): re-apply will move it here\n' "$line" >&2
+                    fi ;;
+                *)
+                    printf '  already bound here:\n  %s\n' "$line" >&2
+                    printf '  free suggestion here: %s\n' \
+                        "$(suggest_combo "$comp" "$(comp_file "$comp")" 2>/dev/null)" >&2
+                    continue ;;
+            esac
         fi
         printf -v "$var" '%s' "$ans"
         return 0
@@ -296,6 +308,7 @@ cmd_setup() {
     ask_shortcut SHORTCUTS_KILL kill
     write_config "$KARUI_OTO_CONFIG"
     KARUI_OTO_CONFIG="$KARUI_OTO_CONFIG" load_config  # validate what we wrote
+    printf 'program installed OK: %s (config written and valid)\n' "$KARUI_OTO_CONFIG" >&2
     ask_yn show_binds "Show binds now?" "Y"
     # Offer assisted install (consent + backup + marked block). Needs at
     # least one shortcut assigned, else there is nothing to install.
@@ -309,21 +322,27 @@ cmd_setup() {
         local comp=""
         comp="$(detect_compositor 2>/dev/null)" || comp=""
         if [ -z "$comp" ]; then
-            printf 'Desktop [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm] (empty = skip): ' >&2
+            printf 'Desktop [niri|hyprland] (empty = skip): ' >&2
             IFS= read -r comp
-            case "$comp" in niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm) : ;; *) comp="" ;; esac
+            case "$comp" in niri|hyprland) : ;; *) comp="" ;; esac
         fi
         if [ -z "$comp" ]; then
-            printf 'skipped binds (pick later: karui-oto binds [niri|hyprland|sway|i3|gnome|kde|xfce|cinnamon|mate|openbox|bspwm])\n' >&2
+            printf 'skipped binds (pick later: karui-oto binds [niri|hyprland])\n' >&2
+            printf 'setup done: program installed, binds pending (manual step above)\n' >&2
         else
             [ "$show_binds" = "true" ] && cmd_binds "$comp"
             if [ "$any_key" = "1" ]; then
                 ask_yn do_apply "Install binds into your $comp config now? (backup + marked block)" "N"
                 if [ "$do_apply" = "true" ]; then
                     binds_apply_flow "$comp"
+                    printf 'setup done: program installed, binds handled above\n' >&2
+                else
+                    printf 'setup done: program installed, binds skipped by you (karui-oto binds %s to print them)\n' "$comp" >&2
                 fi
+            else
+                printf 'setup done: program installed, no shortcuts assigned (no binds to install)\n' >&2
             fi
         fi
     fi
-    printf 'done. Open a picker to test.\n' >&2
+    printf 'Open a picker to test.\n' >&2
 }

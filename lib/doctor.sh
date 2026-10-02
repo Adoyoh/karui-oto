@@ -150,6 +150,18 @@ cmd_doctor() {
             fi
     fi
 
+    # 5b. Portal backend sanity (static check, never probed: a hanging probe
+    # would stall doctor itself). The gnome portal backend needs GNOME Shell;
+    # without it every portal request (kitty startup, GTK file dialogs)
+    # stalls ~25s. Nautilus is unaffected by its removal (libportal only).
+    if command -v dpkg-query >/dev/null 2>&1 \
+        && dpkg-query -W -f='${Status}' xdg-desktop-portal-gnome 2>/dev/null | grep -q "install ok installed"; then
+        case "${XDG_CURRENT_DESKTOP:-} ${XDG_SESSION_DESKTOP:-}" in
+            *[Gg]nome*) : ;;
+            *) warn "xdg-desktop-portal-gnome installed without GNOME Shell: portal requests stall ~25s (slow kitty, stuck file dialogs) -- not a karui-oto bug. Fix: sudo apt remove xdg-desktop-portal-gnome" ;;
+        esac
+    fi
+
     # 6. Logo (kitty-only images, universal symbols). Config already passed
     # validate(), so this only reports EFFECTIVE state (foot ignores images,
     # tint without PIL falls back to the original).

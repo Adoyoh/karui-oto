@@ -141,6 +141,11 @@ en `install.sh` solo como aviso, no como bloqueo.
 - `mpc listall -f` **ignora** el formato: la lista con tags sale de
   `mpc search -f ... title ""` (matchea todo, ~0.3s en 5k temas).
 - `mpc play` pelado con random on arranca al azar: siempre `play <N>`.
+- Kitty tarda ~25s en abrir / diálogos GTK colgados en Hyprland o Niri:
+  suele ser `xdg-desktop-portal-gnome` sin GNOME Shell (cuelga los
+  portales Settings y FileChooser). No es fallo de karui-oto (`doctor`
+  lo avisa): `sudo apt remove xdg-desktop-portal-gnome` (Nautilus
+  sigue igual, usa libportal). Efecto medido: kitty 26.5s → ~1s.
 
 ## Roadmap
 

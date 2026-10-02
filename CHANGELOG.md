@@ -19,6 +19,8 @@
 - Lock-takeover race hardened (loser drops the press instead of doubling).
 - Sync reloads dismiss Hyprland-internal popups (pre-existing config
   notices are not ours); notification centers untouched.
+- doctor warns about xdg-desktop-portal-gnome without GNOME Shell (static
+  dpkg check, never probed: it stalls portal requests ~25s).
 - Hyprland >= 0.55 (Lua): autodetect hyprland.lua vs legacy hyprland.conf,
   Lua emitters (binds + media with locked+repeating), Lua-aware conflict
   scan, live validate (hyprctl reload + configerrors, auto-restore).

@@ -35,6 +35,7 @@ import sys
 # JSON keys that must NOT be plain-uppercased (environment collision).
 KEYMAP = {
     "path": "MUSIC_DIR",
+    "font-colors": "FC",
 }
 
 # Only these keys take these non-scalar types. "kitty"/"foot"/"shortcuts"
@@ -43,7 +44,7 @@ KEYMAP = {
 # (per-mode overrides; empty = inherit the global). It is handled
 # explicitly below, never as a generic object.
 OBJECT_KEYS = {"icons", "kitty", "foot", "shortcuts", "shortcuts_niri",
-               "shortcuts_hyprland"}
+               "shortcuts_hyprland", "font-colors"}
 # Allowed subkeys per section: typos here used to pass silently (e.g.
 # icons.serach kept the default while the user thought it was set).
 SECTION_KEYS = {
@@ -55,6 +56,10 @@ SECTION_KEYS = {
     "shortcuts": {"songs", "artists", "albums", "folders", "kill"},
     "shortcuts_niri": {"songs", "artists", "albums", "folders", "kill"},
     "shortcuts_hyprland": {"songs", "artists", "albums", "folders", "kill"},
+    "font-colors": {"artist", "album", "track", "separator", "highlight",
+                    "highlight_selected", "prompt", "pointer", "marker",
+                    "header", "info", "border", "scrollbar", "gutter",
+                    "border-label", "list-label"},
 }
 # Section present (even empty {}) vs absent: per-compositor shortcuts
 # inherit the global section only when their own section is ABSENT.
@@ -270,7 +275,10 @@ def main():
                     print(f"jconfig: '{key}.{sub}' must be scalar in {path}",
                           file=sys.stderr)
                     return 1
-                emit(f"{name}_{sub.upper()}", subval)
+                # Dashes are not valid in bash names (border-label): emit
+                # them underscored (FC_BORDER_LABEL). No existing subkey
+                # uses dashes, so nothing else changes.
+                emit(f"{name}_{sub.upper().replace('-', '_')}", subval)
         elif isinstance(value, list):
             if key not in ARRAY_KEYS:
                 print(f"jconfig: '{key}' takes no array in {path} "

@@ -151,6 +151,33 @@ else
     ok "remove strips all marked blocks (hand lines stay by design)"
 fi
 
+# 8. font-colors: unknown subkey dies; valid keys apply in isolation
+# (others byte-identical); bad values die with the config spelling.
+printf '{\n  "font-colors": {\n    "nope": "#112233"\n  }\n}\n' > "$T/fc-bad.jsonc"
+if python3 "$KO_ROOT/lib/jconfig.py" "$T/fc-bad.jsonc" >/dev/null 2>&1; then
+    bad "jconfig accepts unknown font-colors subkey"
+else
+    ok "jconfig rejects unknown font-colors subkey"
+fi
+C_ARTIST="A"; C_ALBUM="B"
+FZF_COLOR="border:#111111,scrollbar:#222222"
+FC_SCROLLBAR="#00ff00"; FC_BORDER_LABEL="#ff0000"; FC_GUTTER=""
+export C_ARTIST C_ALBUM FZF_COLOR FC_SCROLLBAR FC_BORDER_LABEL FC_GUTTER
+apply_font_colors
+[ "$C_ARTIST" = "A" ] && [ "$C_ALBUM" = "B" ] \
+    && ok "font-colors leaves text colors alone unless set" \
+    || bad "font-colors clobbered text colors"
+case "$FZF_COLOR" in
+    "border:#111111,scrollbar:#00ff00,border-label:#ff0000")
+        ok "font-colors patches fzf keys in isolation" ;;
+    *) bad "font-colors fzf patch wrong: [$FZF_COLOR]" ;;
+esac
+(
+    FC_BORDER_LABEL="zzz"
+    validate >/dev/null 2>&1
+) && bad "validate accepts bad font-colors value" \
+  || ok "validate rejects bad font-colors value"
+
 rm -f /tmp/ko-test-mpd.conf
 printf -- '---\npass=%s fail=%s\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

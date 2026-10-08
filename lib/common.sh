@@ -94,7 +94,15 @@ defaults() {
     ICONS_ARROW="▶"             # current-line pointer
     ICONS_MARKER="✓"
     ICONS_ALBUM="♪"
-    ICONS_FOLDER=""
+    ICONS_FOLDER=""
+    # Per-element color overrides ("" = inherit the theme). Applied over
+    # C_* and FZF_COLOR after the theme loads (see apply_font_colors).
+    FC_ARTIST="";       FC_ALBUM="";        FC_TRACK=""
+    FC_SEPARATOR="";    FC_HIGHLIGHT="";    FC_HIGHLIGHT_SELECTED=""
+    FC_PROMPT="";       FC_POINTER="";      FC_MARKER=""
+    FC_HEADER="";       FC_INFO="";         FC_BORDER=""
+    FC_SCROLLBAR="";    FC_GUTTER="";       FC_BORDER_LABEL=""
+    FC_LIST_LABEL=""
     SHUFFLE="true"              # true: random on + shuffle. false: in order
     REPEAT="true"                # true: repeat on
     MPRIS="true"                  # true: start mpDris2 deferred after picking
@@ -194,6 +202,43 @@ apply_mode_overrides() {
     done
 }
 
+# fzf_color_set <key> <hex>: point one fzf --color entry at a new color.
+# FZF_COLOR is a flat "k:v,k:v" string from the theme; the key is replaced
+# in place (or appended when the theme lacks it). Values always carry #
+# (bare rrggbb from the config gets it prepended).
+fzf_color_set() {
+    local k="$1" v="$2" IFS=',' p out=""
+    case "$v" in \#*) : ;; *) v="#$v" ;; esac
+    for p in $FZF_COLOR; do
+        case "$p" in "$k:"*) continue ;; *) out="${out:+$out,}$p" ;; esac
+    done
+    FZF_COLOR="${out:+$out,}$k:$v"
+}
+
+# apply_font_colors: font-colors{} overrides after the theme loaded.
+# Text elements rewrite C_* (ANSI, via ansi_fg); fzf chrome rewrites
+# FZF_COLOR entries. Empty = inherit theme (nothing to do). Precedence:
+# font-colors > theme. Called at the end of derivados(), before validate().
+apply_font_colors() {
+    [ -n "${FC_ARTIST:-}" ]    && C_ARTIST="$(ansi_fg "$FC_ARTIST")"
+    [ -n "${FC_ALBUM:-}" ]     && C_ALBUM="$(ansi_fg "$FC_ALBUM")"
+    [ -n "${FC_TRACK:-}" ]     && C_TRACK="$(ansi_fg "$FC_TRACK")"
+    [ -n "${FC_SEPARATOR:-}" ] && C_SEP="$(ansi_fg "$FC_SEPARATOR")"
+    [ -n "${FC_HIGHLIGHT:-}" ]          && fzf_color_set "hl" "$FC_HIGHLIGHT"
+    [ -n "${FC_HIGHLIGHT_SELECTED:-}" ] && fzf_color_set "hl+" "$FC_HIGHLIGHT_SELECTED"
+    [ -n "${FC_PROMPT:-}" ]  && fzf_color_set "prompt" "$FC_PROMPT"
+    [ -n "${FC_POINTER:-}" ] && fzf_color_set "pointer" "$FC_POINTER"
+    [ -n "${FC_MARKER:-}" ]  && fzf_color_set "marker" "$FC_MARKER"
+    [ -n "${FC_HEADER:-}" ]  && fzf_color_set "header" "$FC_HEADER"
+    [ -n "${FC_INFO:-}" ]    && fzf_color_set "info" "$FC_INFO"
+    [ -n "${FC_BORDER:-}" ]  && fzf_color_set "border" "$FC_BORDER"
+    [ -n "${FC_SCROLLBAR:-}" ]     && fzf_color_set "scrollbar" "$FC_SCROLLBAR"
+    [ -n "${FC_GUTTER:-}" ]        && fzf_color_set "gutter" "$FC_GUTTER"
+    [ -n "${FC_BORDER_LABEL:-}" ]  && fzf_color_set "border-label" "$FC_BORDER_LABEL"
+    [ -n "${FC_LIST_LABEL:-}" ]    && fzf_color_set "list-label" "$FC_LIST_LABEL"
+    return 0
+}
+
 # --- Derivados: HIDE_RE, contraste automático ----------------------------------
 derivados() {
     # hide[] (\x1f) -> alternancia grep -vE. Vacío = sin filtro.
@@ -214,6 +259,7 @@ derivados() {
         if [ "$lum" -ge 128 ]; then T_FG="4c4f69"; else T_FG="cdd6f4"; fi
     fi
     derivados_logo
+    apply_font_colors
 }
 
 # ansi_fg <hex>: print the \033[38;2;R;G;Bm escape for a #rrggbb color.
@@ -352,7 +398,7 @@ perceptual_alpha() {
 }
 
 # --- Strict validation: fail fast with a clear message -----------------------
-KNOWN_KEYS="path mpd_conf terminal term_class kitty foot theme icons shuffle repeat mpris min_tracks hide shortcuts shortcuts_niri shortcuts_hyprland modes logo"
+KNOWN_KEYS="path mpd_conf terminal term_class kitty foot theme icons shuffle repeat mpris min_tracks hide shortcuts shortcuts_niri shortcuts_hyprland font-colors modes logo"
 # shortcut_for <mode-lower> <comp>: effective combo for the compositor.
 # Own section present -> its value (empty = unassigned there); otherwise
 # the global shortcuts{} value. Unknown comps resolve to "" (never die
@@ -512,6 +558,21 @@ validate() {
             [[ "${!var}" =~ ^#?[0-9a-fA-F]{6}$ ]] \
                 || die "$var='${!var}' invalid (format: #rrggbb)"
         fi
+    done
+    # font-colors{}: empty inherits the theme, otherwise strict #rrggbb.
+    local _fc _fck
+    for _fc in FC_ARTIST FC_ALBUM FC_TRACK FC_SEPARATOR FC_HIGHLIGHT \
+               FC_HIGHLIGHT_SELECTED FC_PROMPT FC_POINTER FC_MARKER \
+               FC_HEADER FC_INFO FC_BORDER FC_SCROLLBAR FC_GUTTER \
+               FC_BORDER_LABEL FC_LIST_LABEL; do
+        # Display name back to config spelling (only these two use dashes).
+        case "$_fc" in
+            FC_BORDER_LABEL) _fck="border-label" ;;
+            FC_LIST_LABEL) _fck="list-label" ;;
+            *) _fck="${_fc#FC_}"; _fck="${_fck,,}" ;;
+        esac
+        [ -z "${!_fc}" ] || [[ "${!_fc}" =~ ^#?[0-9a-fA-F]{6}$ ]] \
+            || die "font-colors.${_fck}='${!_fc}' invalid (format: #rrggbb, empty = inherit theme)"
     done
     # Shortcuts: empty = unassigned (skipped by `binds`); otherwise strict
     # CANONICAL form (capital M, translators depend on it): Mod+O,

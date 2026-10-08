@@ -119,6 +119,7 @@ with defaults in `config.jsonc.example`, in code order. Essentials:
 | `transparency` | 0.00–1.00 validated (kitty: background only; foot: whole window, washes text out below 1.0) |
 | `font`, `font_size` | fontconfig family (warns if missing, cached 24h) + points |
 | `theme` + `icons` section | palette (`themes/yours.sh`) and search/arrow/marker/album glyphs |
+| `font-colors` (optional) | per-element tints, all `""` = inherit theme: text `artist/album/track/separator`, matches `highlight/highlight_selected`, glyphs `prompt/pointer/marker`, chrome `header/info/border/border-label/list-label/scrollbar/gutter`. Format `#rrggbb` |
 | `shuffle`/`repeat` | `random`/`repeat` on/off — global |
 | `mpris` | deferred mpDris2 after picking (or never) — global |
 | `modes` | per-bind overrides: `songs`/`artists`/`albums`/`folders` with their own `shuffle`/`repeat`/`mpris`; `""` = inherit global |

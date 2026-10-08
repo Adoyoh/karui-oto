@@ -38,11 +38,27 @@
   // Looks (shared)
   "theme": "karui-dark",             // file in themes/<name>.sh
   "icons": {
-    "search": "",             // nerd magnifier (empty also works)
+    "search": "",             // nerd magnifier (empty also works)
     "arrow": "▶",                     // current-line pointer
     "marker": "✓",
     "album": "♪"                      // artist/album label garnish
   },
+
+  // --- Font colors (all optional, "" = inherit the theme) --------------------
+  // Text: artist/album/track/separator tint the list columns. highlight =
+  // matched text, highlight_selected = matched text on the selected line.
+  // prompt/pointer/marker color the search/arrow/check glyphs; header/info/
+  // border/border-label/list-label/scrollbar/gutter paint the fzf chrome
+  // (border-label tints the "♪ mode" tag + icon, list-label the track
+  // counter, scrollbar + gutter the right margin). Format: #rrggbb or empty.
+  // "font-colors": {
+  //   "artist": "", "album": "", "track": "", "separator": "",
+  //   "highlight": "", "highlight_selected": "",
+  //   "prompt": "", "pointer": "", "marker": "",
+  //   "header": "", "info": "", "border": "",
+  //   "scrollbar": "", "gutter": "",
+  //   "border-label": "", "list-label": ""
+  // },
 
   // Behavior
   "shuffle": true,                    // true: random on + shuffle. false: in order

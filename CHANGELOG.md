@@ -1,6 +1,12 @@
 # CHANGELOG — format: `## [version] - date` (newest on top)
 
-## [1.2.0] - 2026-10-02
+## [1.3.0] - 2026-10-08
+- font-colors{} grows to 16 keys: scrollbar/gutter/border-label/list-label
+  join text/match/glyph/chrome tints (dashes map to FC_* underscores).
+- Examples/ screenshots folder (README wiring pending).
+- font-colors{}: 16 optional per-element tints (text, matches, glyphs,
+  fzf chrome incl. scrollbar/gutter/border-label/list-label); empty
+  inherits the theme, unknown keys die.
 - README rewritten in English + doctor section; per-compositor shortcuts
   docs; roadmap refreshed.
 - Logo image transparency is perceptual now (cubed: 0.40 acts like 0.06,

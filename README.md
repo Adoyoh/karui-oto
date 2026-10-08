@@ -1,5 +1,7 @@
 # Karui Oto — ephemeral fzf pickers for MPD
 
+[Hyprland] [niri]
+
 Keyboard-driven pickers for MPD: songs, artists, albums and folders in
 minimal floating windows. Pick one and it plays instantly, the rest
 shuffles behind it.
@@ -19,6 +21,14 @@ karui-oto setup          # wizard: music dir, terminal, shortcuts
 
 Press your shortcut, pick, listen. Edit `shortcuts{}`, save, and the next
 keypress already works (binds self-sync in the background).
+
+### Kitty
+![Picker en Kitty](Examples/Kittysongs1.png)
+![Artistas en Kitty](Examples/2artistas.png)
+
+### Foot
+![Picker en Foot](Examples/foot1.png)
+![Artistas en Foot](Examples/foot2.png)
 
 ## Requirements
 
@@ -108,27 +118,28 @@ their translators in case they ever return).
 
 ## Configuration (`~/.config/karui-oto/config.jsonc`)
 
-JSONC (JSON with `//` and `/* */`, like fastfetch). Everything commented
+Everything commented
 with defaults in `config.jsonc.example`, in code order. Essentials:
 
-| Key | Effect |
+ Key | Effect |
 |---|---|
-| `terminal` = kitty\|foot | which `terminals/` adapter opens the picker |
-| `path`, `mpd_conf` | your music and your mpd (`~` expands, both must exist) |
-| `kitty` / `foot` (sections) | per-terminal config: `font`, `font_size`, `width`, `height`, `color`, `transparency` |
-| `color` | `"#rrggbb"` = background + auto-contrast text; `""` = default |
-| `transparency` | 0.00–1.00 validated (kitty: background only; foot: whole window, washes text out below 1.0) |
-| `font`, `font_size` | fontconfig family (warns if missing, cached 24h) + points |
-| `theme` + `icons` section | palette (`themes/yours.sh`) and search/arrow/marker/album glyphs |
-| `font-colors` (optional) | per-element tints, all `""` = inherit theme: text `artist/album/track/separator`, matches `highlight/highlight_selected`, glyphs `prompt/pointer/marker`, chrome `header/info/border/border-label/list-label/scrollbar/gutter`. Format `#rrggbb` |
-| `shuffle`/`repeat` | `random`/`repeat` on/off — global |
-| `mpris` | deferred mpDris2 after picking (or never) — global |
-| `modes` | per-bind overrides: `songs`/`artists`/`albums`/`folders` with their own `shuffle`/`repeat`/`mpris`; `""` = inherit global |
-| `shortcuts_niri` / `shortcuts_hyprland` | per-compositor overrides (absent = inherit `shortcuts{}`) |
-| `term_class` | window app-id for compositor rules (letters, digits, `_.-` only) |
-| `min_tracks` | artists mode: hide artists with fewer tracks (1 = show all) |
-| `logo` | picker logos (kitty-only for images): `symbol` items (text/emoji in the header, with `color`/`size`/`position`) or one `image` (kitty window logo with perceptual `transparency`/0–100 `size`/9-point `position`/`color`=tint); `gif` unsupported, 1 image max, ignored on foot |
-| `hide` | regex array filtered out of artists mode (each must compile) |
+| `"terminal"`: `"kitty"` \| `"foot"` | which `terminals/` adapter opens the picker |
+| `"path"`, `"mpd_conf"` | your music and your mpd (`~` expands, both must exist) |
+| `"kitty"` / `"foot"` (sections) | per-terminal config: `"font"`, `"font_size"`, `"width"`, `"height"`, `"color"`, `"transparency"` |
+| `"color"` | `"#rrggbb"` (bare `rrggbb` without `#` also valid; color names like `blue` are rejected) = background + auto-contrast text; `""` = default |
+| `"transparency"` | 0.00–1.00 validated (kitty: background only; foot: whole window, washes text out below 1.0) |
+| `"font"`, `"font_size"` | fontconfig family (warns if missing, cached 24h) + points |
+| `"theme"` + `"icons"` section | palette (`themes/yours.sh`) and search/arrow/marker/album/folder glyphs (empty glyph allowed) |
+| `"font-colors"` (optional) | per-element tints, all `""` = inherit theme: text `artist/album/track/separator`, matches `highlight/highlight_selected`, glyphs `prompt/pointer/marker`, chrome `header/info/border/border-label/list-label/scrollbar/gutter`. Format `#rrggbb` |
+| `"shuffle"`/`"repeat"` | `random`/`repeat` on/off — global |
+| `"mpris"` | deferred mpDris2 after picking (or never) — global |
+| `"modes"` | per-bind overrides: `songs`/`artists`/`albums`/`folders` with their own `shuffle`/`repeat`/`mpris`; `""` = inherit global |
+| `"shortcuts"` | per-mode combos (`"songs"`, `"artists"`, `"albums"`, `"folders"`, `"kill"`): canonical form `Mod+O`, empty string = unassigned; default shared by both compositors |
+| `"shortcuts_niri"` / `"shortcuts_hyprland"` | per-compositor overrides (absent = inherit `"shortcuts{}"`) |
+| `"term_class"` | window app-id for compositor rules (letters, digits, `_.-` only) |
+| `"min_tracks"` | artists mode: hide artists with fewer tracks (1 = show all) |
+| `"logo"` | picker logos (kitty-only for images): unlimited `symbol` items (text/emoji in the header; `"color"` as `"#rrggbb"`, empty = theme pink; `"size"` = `"small"`\|`"normal"`\|`"large"`, empty = `"normal"`; `"position"` = `"left"`\|`"center"`\|`"right"`, empty = `"left"`) or a single `"image"` per whole config (kitty window logo: existing file path, `"transparency"` 0.00–1.00 perceptual with empty = 1.0, `"size"` integer 0–100 with 0 = native, `"position"` one of `"top-left"` `"top"` `"top-right"` `"left"` `"center"` `"right"` `"bottom-left"` `"bottom-right"` with empty = `"bottom-right"`, `"color"` = `"#rrggbb"` tint needing python3-pil); `"gif"` unsupported, images ignored on foot |
+| `"hide"` | regex array filtered out of artists mode (each must compile) |
 
 Unknown key = warning (likely typo). Invalid value = fatal with message
 and offending lines. The `logo` image path must exist.
@@ -178,7 +189,24 @@ missing (with fallback); the default (Liberation Mono) is only advisory.
   by artist (exact album+artist find).
 - **Folders:** any subtree as-is (`Artist/[Year] Album` straight through).
 
-## Troubleshooting (known quirks, not pending bugs)
+## High AI usage
+
+Heavy AI use in this project. I'm learning to program on my own, much
+like I started using Linux just a couple of months ago. Everything
+uploaded here goes through my hands and gets tested on my machine first.
+
+## Why this exists
+
+This began as a purely personal project: I felt no need for a
+traditional player sitting in the background, and I wanted a fast
+launcher I could summon from any window no hopping over to the player,
+just pick and keep flowing, made beautiful along the way. I liked the
+result enough to grow it with more features, and even tested and tuned
+it on Hyprland (not my daily driver) so more people can enjoy it their
+own way. I kept adding features for you lot, so if you like
+it, know it cost me sleep. Enjoy it like I do, little bastards.
+
+## Troubleshooting
 
 - `mpc playlist` prints `Artist - Title`, **not paths**: never locate a
   track by grepping the playlist (see `lib/picker.sh`).

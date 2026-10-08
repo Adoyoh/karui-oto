@@ -195,12 +195,12 @@ uploaded here goes through my hands and gets tested on my machine first.
 
 This began as a purely personal project: I felt no need for a
 traditional player sitting in the background, and I wanted a fast
-launcher I could summon from any window — no hopping over to the player,
+launcher I could summon from any window no hopping over to the player,
 just pick and keep flowing, made beautiful along the way. I liked the
 result enough to grow it with more features, and even tested and tuned
 it on Hyprland (not my daily driver) so more people can enjoy it their
-own way. And yeah — I kept adding features for you lot, so if you like
-it, know it cost me sleep. Enjoy it like I do, bastards.
+own way. I kept adding features for you lot, so if you like
+it, know it cost me sleep. Enjoy it like I do, little bastards.
 
 ## Troubleshooting
 

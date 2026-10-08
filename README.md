@@ -1,14 +1,5 @@
 # Karui Oto — ephemeral fzf pickers for MPD
 
-### Kitty
-![Picker en Kitty](Examples/Kittysongs1.png)
-![Artistas en Kitty](Examples/2 artistas.png)
-
-### Foot
-![Picker en Foot](Examples/foot1.png)
-![Artistas en Foot](Examples/foot2.png)
-
-
 Keyboard-driven pickers for MPD: songs, artists, albums and folders in
 minimal floating windows. Pick one and it plays instantly, the rest
 shuffles behind it.
@@ -185,6 +176,14 @@ missing (with fallback); the default (Liberation Mono) is only advisory.
   first value of multi-tags). Ambiguous albums ("Greatest Hits") disambiguate
   by artist (exact album+artist find).
 - **Folders:** any subtree as-is (`Artist/[Year] Album` straight through).
+
+### Kitty
+![Picker en Kitty](Examples/Kittysongs1.png)
+![Artistas en Kitty](Examples/2artistas.png)
+
+### Foot
+![Picker en Foot](Examples/foot1.png)
+![Artistas en Foot](Examples/foot2.png)
 
 ## Troubleshooting (known quirks, not pending bugs)
 

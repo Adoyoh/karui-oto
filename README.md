@@ -20,6 +20,14 @@ karui-oto setup          # wizard: music dir, terminal, shortcuts
 Press your shortcut, pick, listen. Edit `shortcuts{}`, save, and the next
 keypress already works (binds self-sync in the background).
 
+### Kitty
+![Picker en Kitty](Examples/Kittysongs1.png)
+![Artistas en Kitty](Examples/2artistas.png)
+
+### Foot
+![Picker en Foot](Examples/foot1.png)
+![Artistas en Foot](Examples/foot2.png)
+
 ## Requirements
 
 | Required | For | Notes |
@@ -176,14 +184,6 @@ missing (with fallback); the default (Liberation Mono) is only advisory.
   first value of multi-tags). Ambiguous albums ("Greatest Hits") disambiguate
   by artist (exact album+artist find).
 - **Folders:** any subtree as-is (`Artist/[Year] Album` straight through).
-
-### Kitty
-![Picker en Kitty](Examples/Kittysongs1.png)
-![Artistas en Kitty](Examples/2artistas.png)
-
-### Foot
-![Picker en Foot](Examples/foot1.png)
-![Artistas en Foot](Examples/foot2.png)
 
 ## Troubleshooting (known quirks, not pending bugs)
 

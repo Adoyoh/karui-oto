@@ -42,7 +42,8 @@ KEYMAP = {
 # the single two-level section: mode -> {shuffle,repeat,mpris} scalars only
 # (per-mode overrides; empty = inherit the global). It is handled
 # explicitly below, never as a generic object.
-OBJECT_KEYS = {"icons", "kitty", "foot", "shortcuts"}
+OBJECT_KEYS = {"icons", "kitty", "foot", "shortcuts", "shortcuts_niri",
+               "shortcuts_hyprland"}
 # Allowed subkeys per section: typos here used to pass silently (e.g.
 # icons.serach kept the default while the user thought it was set).
 SECTION_KEYS = {
@@ -52,7 +53,12 @@ SECTION_KEYS = {
     "foot": {"font", "font_size", "width", "height", "color",
              "transparency"},
     "shortcuts": {"songs", "artists", "albums", "folders", "kill"},
+    "shortcuts_niri": {"songs", "artists", "albums", "folders", "kill"},
+    "shortcuts_hyprland": {"songs", "artists", "albums", "folders", "kill"},
 }
+# Section present (even empty {}) vs absent: per-compositor shortcuts
+# inherit the global section only when their own section is ABSENT.
+SECTION_PRESENT = {"shortcuts_niri", "shortcuts_hyprland"}
 ARRAY_KEYS = {"hide"}
 MODES_ALLOWED_MODES = {"songs", "artists", "albums", "folders"}
 MODES_ALLOWED_KEYS = {"shuffle", "repeat", "mpris"}
@@ -96,6 +102,8 @@ def strip_comments(src):
         if c == "/" and i + 1 < n and src[i + 1] == "*":
             i += 2
             while i + 1 < n and not (src[i] == "*" and src[i + 1] == "/"):
+                if src[i] == "\n":
+                    out.append("\n")  # keep line numbers aligned with the file
                 i += 1
             i += 2
             continue
@@ -118,6 +126,36 @@ def emit(name, value):
         print(f"{name}={shquote(value)}")
 
 
+def print_json_context(raw, lineno):
+    """Show the offending line plus neighbors (read-only display).
+    Line numbers match the user's file: comments are lines too, so the
+    raw text (not the stripped one) is shown."""
+    lines = raw.splitlines()
+    lo = max(1, (lineno or 1) - 2)
+    hi = min(len(lines), (lineno or 1) + 2)
+    for n in range(lo, hi + 1):
+        mark = ">" if n == lineno else " "
+        print(f"jconfig: {mark} {n}: {lines[n - 1]}", file=sys.stderr)
+
+
+def print_json_hint(message):
+    """Translate common JSON errors into human causes. Unknown shapes
+    keep the raw message only (never guess)."""
+    hint = None
+    if "trailing comma" in message:
+        hint = "remove the comma after the last entry"
+    elif "Expecting value" in message:
+        hint = "likely a trailing comma before ] or }"
+    elif "Expecting ',' delimiter" in message:
+        hint = "likely a missing comma between entries, or a trailing comma"
+    elif "Unterminated string" in message or "Invalid control character" in message:
+        hint = "likely an unclosed quote"
+    elif "Expecting property name enclosed in double quotes" in message:
+        hint = "likely a missing quote, brace or comma"
+    if hint is not None:
+        print(f"jconfig: hint: {hint}", file=sys.stderr)
+
+
 def main():
     if len(sys.argv) != 2:
         print("usage: jconfig.py <config.jsonc>", file=sys.stderr)
@@ -135,6 +173,8 @@ def main():
         data = json.loads(strip_comments(raw))
     except json.JSONDecodeError as exc:
         print(f"jconfig: invalid JSON in {path}: {exc}", file=sys.stderr)
+        print_json_context(raw, exc.lineno)
+        print_json_hint(str(exc))
         return 1
     if not isinstance(data, dict):
         print(f"jconfig: root must be an object {{...}} in {path}",
@@ -216,6 +256,10 @@ def main():
                 print(f"jconfig: '{key}' takes no object in {path} "
                       f"(only {sorted(OBJECT_KEYS)})", file=sys.stderr)
                 return 1
+            if key in SECTION_PRESENT:
+                # Present even when empty {}: empty means "unassigned here",
+                # absent means "inherit the global shortcuts section".
+                emit(f"{key.upper()}_PRESENT", True)
             for sub, subval in value.items():
                 if sub not in SECTION_KEYS[key]:
                     print(f"jconfig: unknown key '{key}.{sub}' in {path} "

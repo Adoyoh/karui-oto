@@ -64,6 +64,24 @@
     "folders": "",
     "kill": ""
   },
+  // --- Per-compositor shortcuts (optional) -----------------------------------
+  // Each DE keeps its own binds: uncomment a section to override the
+  // globals above for that compositor only. Absent section = inherit
+  // globals; empty mode inside an existing section = unassigned there.
+  // "shortcuts_niri": {
+  //   "songs": "Mod+O",
+  //   "artists": "",
+  //   "albums": "",
+  //   "folders": "",
+  //   "kill": "Mod+X"
+  // },
+  // "shortcuts_hyprland": {
+  //   "songs": "Mod+O",
+  //   "artists": "",
+  //   "albums": "",
+  //   "folders": "",
+  //   "kill": "Mod+X"
+  // },
 
   // --- Per-mode overrides (optional; "" = inherit the globals above) -------
   // Each bind can carry its own behavior: fill a knob to win over the
@@ -85,7 +103,9 @@
   //   theme pink); size small|normal|large (= dim|plain|bold);
   //   position left|center|right.
   // image: kitty window logo over the picker; file path (~ ok); transparency
-  //   0.00-1.00 (native, no white box when the PNG has alpha);
+  //   0.00-1.00 with a perceptual curve (low values bite hard: 0.40 acts
+  //   like 0.06, 0.10 is nearly invisible; native, no white box when the
+  //   PNG has alpha);
   //   size 0-100 (0 = native); position top-left|top|top-right|left|center|
   //   right|bottom-left|bottom|bottom-right; color = tint (needs
   //   python3-pil, else the original is used). ONE image max per window.

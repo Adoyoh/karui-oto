@@ -41,7 +41,7 @@ export KO_ROOT
 
 source "$KO_ROOT/lib/common.sh"
 
-KO_VERSION="1.1.0"
+KO_VERSION="1.2.0"
 
 usage() {
     cat <<EOF
@@ -157,9 +157,9 @@ binds_cmd() {
 # Shared pre-flight for --apply: at least one shortcut assigned + no
 # conflicts with foreign binds. Returns 0 or dies with specifics.
 binds_preflight() {
-    local comp="$1" mode combo var any=0 bad=0 line
+    local comp="$1" mode combo any=0 bad=0 line
     for mode in songs artists albums folders kill; do
-        var="SHORTCUTS_${mode^^}"; combo="${!var}"
+        combo="$(shortcut_for "$mode" "$comp")"
         [ -n "$combo" ] || continue
         any=1
         if line="$(binds_conflict "$comp" "$combo")"; then
@@ -233,8 +233,14 @@ binds_apply_flow() {
 }
 
 main() {
-    load_config
     local cmd="${1:-help}"
+    # doctor and setup load the config themselves and tolerate it broken
+    # (doctor reports it as finding #1, setup prefills-or-defaults): an
+    # eager load_config here would die before they can do their job.
+    case "$cmd" in
+        doctor|setup|help|--help|-h|version|--version) : ;;
+        *) load_config ;;
+    esac
     case "$cmd" in
         songs|artists|albums|folders) open_mode "$cmd" ;;
         __pick)               # internal: runs INSIDE the terminal
@@ -255,7 +261,7 @@ main() {
             source "$KO_ROOT/lib/doctor.sh"
             cmd_doctor "$@" ;;
         kill)    kill_all ;;
-        version) printf 'karui-oto %s\n' "$KO_VERSION" ;;
+        version|--version) printf 'karui-oto %s\n' "$KO_VERSION" ;;
         help|--help|-h) usage ;;
         *) die "unknown subcommand: $cmd (use: help)" ;;
     esac

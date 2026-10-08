@@ -39,24 +39,28 @@ ask_yn() {
     esac
 }
 
-# combo_ok <value>: same canonical rule as validate() (kept in sync;
-# validate() is the source of truth, this is the interactive twin).
+# combo_ok <value>: interactive twin of combo_canonical_ok() in common.sh
+# (single source of truth lives there; this wrapper keeps setup.sh callers).
 combo_ok() {
-    local re_combo='^(Mod|Shift|Ctrl|Alt)(\+(Mod|Shift|Ctrl|Alt))*\+([A-Z0-9]|F[0-9]{1,2}|XF86[A-Za-z]+|space|Tab|Escape|Return|BackSpace|Delete|Insert|Home|End|Page_Up|Page_Down)$'
-    local re_bare='^(F[0-9]{1,2}|XF86[A-Za-z]+)$'
-    [[ "$1" =~ $re_combo ]] || [[ "$1" =~ $re_bare ]]
+    combo_canonical_ok "$1"
 }
 
 # ask_shortcut <VAR> <mode>: combo with canonical validation + conflict
 # check against the compositor file (read-only). Empty skips (unassigned).
+# ask_shortcut <VAR> <mode> [comp] [label]: combo with canonical
+# validation + conflict check against the compositor file (read-only).
+# Empty skips (unassigned). $3 pins the conflict scan to that compositor
+# (per-DE overrides asked from another session); default autodetects.
+# $4 overrides the prompt label (defaults to the mode).
 # Own installed binds are NOT conflicts: same mode+combo is kept silently,
 # ours elsewhere just notes the re-apply will move it. Only foreign binds
 # loop back with a suggestion.
 ask_shortcut() {
-    local var="$1" mode="$2" ans comp cfile line
-    comp="$(detect_compositor 2>/dev/null)" || comp=""
+    local var="$1" mode="$2" ans comp line label
+    comp="${3:-}"; label="${4:-$mode}"
+    if [ -z "$comp" ]; then comp="$(detect_compositor 2>/dev/null)" || comp=""; fi
     while :; do
-        printf '%s shortcut (empty = none) [%s]: ' "$mode" "${!var:-}" >&2
+        printf '%s shortcut (empty = none) [%s]: ' "$label" "${!var:-}" >&2
         IFS= read -r ans
         [ -z "$ans" ] && { printf -v "$var" '%s' ""; return 0; }
         combo_ok "$ans" || {
@@ -171,6 +175,21 @@ write_config() {
         printf '    "folders": %s,\n' "$(jstr "$SHORTCUTS_FOLDERS")"
         printf '    "kill": %s\n' "$(jstr "$SHORTCUTS_KILL")"
         printf '  },\n'
+        # Per-compositor overrides (only sections the user enabled; absent
+        # sections inherit the globals above at load time).
+        local _wc _wp _wm _wv
+        for _wc in NIRI HYPRLAND; do
+            _wp="SHORTCUTS_${_wc}_PRESENT"
+            [ "${!_wp:-}" = "true" ] || continue
+            printf '  "shortcuts_%s": {\n' "${_wc,,}"
+            for _wm in SONGS ARTISTS ALBUMS FOLDERS; do
+                _wv="SHORTCUTS_${_wc}_${_wm}"
+                printf '    "%s": %s,\n' "${_wm,,}" "$(jstr "${!_wv:-}")"
+            done
+            _wv="SHORTCUTS_${_wc}_KILL"
+            printf '    "kill": %s\n' "$(jstr "${!_wv:-}")"
+            printf '  },\n'
+        done
         printf '  // Per-mode overrides (optional; "" = inherit the globals above).\n'
         printf '  // Example: party songs shuffled, albums in order:\n'
         printf '  //   "songs": { "shuffle": true, "repeat": "", "mpris": "" },\n'
@@ -249,7 +268,7 @@ cmd_setup() {
         printf '(prefilling from your current config)\n' >&2
     fi
     printf 'karui-oto setup — Enter accepts [default]\n' >&2
-    local tries=0 ans
+    local tries=0 ans _oc _om _ov _op _og _yn _want _had
     while :; do
         ask MUSIC_DIR "Music folder" "$MUSIC_DIR"
         expand_tilde MUSIC_DIR
@@ -306,42 +325,68 @@ cmd_setup() {
     ask_shortcut SHORTCUTS_ALBUMS albums
     ask_shortcut SHORTCUTS_FOLDERS folders
     ask_shortcut SHORTCUTS_KILL kill
+    # Per-compositor overrides: each DE keeps its own binds, never wiping
+    # the other. N = inherit the globals above (section stays absent).
+    for _oc in NIRI HYPRLAND; do
+        _op="SHORTCUTS_${_oc}_PRESENT"
+        if [ "${!_op:-}" = "true" ]; then _yn="Y"; _had="1"; else _yn="N"; _had=""; fi
+        ask_yn _want "Different shortcuts for ${_oc,,} than globals? (N = inherit)" "$_yn"
+        if [ "$_want" = "true" ]; then
+            printf -v "$_op" '%s' "true"
+            for _om in SONGS ARTISTS ALBUMS FOLDERS KILL; do
+                _ov="SHORTCUTS_${_oc}_${_om}"
+                # Fresh section only: prefill globals as working defaults so
+                # Enter keeps the global value (explicit clear = unassign).
+                # Existing sections keep their values (even intentional empties).
+                if [ -z "$_had" ] && [ -z "${!_ov:-}" ]; then
+                    _og="SHORTCUTS_${_om}"
+                    printf -v "$_ov" '%s' "${!_og:-}"
+                fi
+                ask_shortcut "$_ov" "${_om,,}" "${_oc,,}" "${_om,,} [${_oc,,}]"
+            done
+        else
+            printf -v "$_op" '%s' ""
+            for _om in SONGS ARTISTS ALBUMS FOLDERS KILL; do
+                _ov="SHORTCUTS_${_oc}_${_om}"
+                printf -v "$_ov" '%s' ""
+            done
+        fi
+    done
     write_config "$KARUI_OTO_CONFIG"
     KARUI_OTO_CONFIG="$KARUI_OTO_CONFIG" load_config  # validate what we wrote
     printf 'program installed OK: %s (config written and valid)\n' "$KARUI_OTO_CONFIG" >&2
     ask_yn show_binds "Show binds now?" "Y"
-    # Offer assisted install (consent + backup + marked block). Needs at
-    # least one shortcut assigned, else there is nothing to install.
-    local any_key=0 m v
-    for m in SONGS ARTISTS ALBUMS FOLDERS KILL; do
-        v="SHORTCUTS_$m"; [ -n "${!v}" ] && any_key=1
-    done
-    if [ "$show_binds" = "true" ] || [ "$any_key" = "1" ]; then
-        # Resolve the compositor ONCE so show + apply agree. Autodetect
-        # first; if that fails ask instead of dying inside the wizard.
-        local comp=""
-        comp="$(detect_compositor 2>/dev/null)" || comp=""
-        if [ -z "$comp" ]; then
-            printf 'Desktop [niri|hyprland] (empty = skip): ' >&2
-            IFS= read -r comp
-            case "$comp" in niri|hyprland) : ;; *) comp="" ;; esac
-        fi
-        if [ -z "$comp" ]; then
-            printf 'skipped binds (pick later: karui-oto binds [niri|hyprland])\n' >&2
-            printf 'setup done: program installed, binds pending (manual step above)\n' >&2
-        else
-            [ "$show_binds" = "true" ] && cmd_binds "$comp"
-            if [ "$any_key" = "1" ]; then
-                ask_yn do_apply "Install binds into your $comp config now? (backup + marked block)" "N"
-                if [ "$do_apply" = "true" ]; then
-                    binds_apply_flow "$comp"
-                    printf 'setup done: program installed, binds handled above\n' >&2
-                else
-                    printf 'setup done: program installed, binds skipped by you (karui-oto binds %s to print them)\n' "$comp" >&2
-                fi
+    # Resolve the compositor ONCE so show + apply agree. Autodetect
+    # first; if that fails ask instead of dying inside the wizard.
+    local comp=""
+    comp="$(detect_compositor 2>/dev/null)" || comp=""
+    if [ -z "$comp" ]; then
+        printf 'Desktop [niri|hyprland] (empty = skip): ' >&2
+        IFS= read -r comp
+        case "$comp" in niri|hyprland) : ;; *) comp="" ;; esac
+    fi
+    if [ -z "$comp" ]; then
+        printf 'skipped binds (pick later: karui-oto binds [niri|hyprland])\n' >&2
+        printf 'setup done: program installed, binds pending (manual step above)\n' >&2
+    else
+        [ "$show_binds" = "true" ] && cmd_binds "$comp"
+        # Offer assisted install (consent + backup + marked block). Needs
+        # at least one EFFECTIVE shortcut for this compositor (global or
+        # override), else there is nothing to install.
+        local any_key=0 m
+        for m in songs artists albums folders kill; do
+            [ -n "$(shortcut_for "$m" "$comp")" ] && any_key=1
+        done
+        if [ "$any_key" = "1" ]; then
+            ask_yn do_apply "Install binds into your $comp config now? (backup + marked block)" "N"
+            if [ "$do_apply" = "true" ]; then
+                binds_apply_flow "$comp"
+                printf 'setup done: program installed, binds handled above\n' >&2
             else
-                printf 'setup done: program installed, no shortcuts assigned (no binds to install)\n' >&2
+                printf 'setup done: program installed, binds skipped by you (karui-oto binds %s to print them)\n' "$comp" >&2
             fi
+        else
+            printf 'setup done: program installed, no shortcuts assigned for %s (no binds to install)\n' "$comp" >&2
         fi
     fi
     printf 'Open a picker to test.\n' >&2

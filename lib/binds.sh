@@ -144,10 +144,9 @@ bind_hyprland_lua() {  # <mode> <combo>
 # gen_binds_block <comp>: raw bind lines (no header) for printing/applying.
 # Empty shortcuts become comment placeholders (comment-safe in both syntaxes).
 gen_binds_block() {
-    local comp="$1" mode combo var
+    local comp="$1" mode combo
     for mode in songs artists albums folders kill; do
-        var="SHORTCUTS_${mode^^}"
-        combo="${!var}"
+        combo="$(shortcut_for "$mode" "$comp")"
         if [ -z "$combo" ]; then
             if [ "$comp" = "niri" ]; then
                 printf '// %s: (no shortcut — empty in config)\n' "$mode"

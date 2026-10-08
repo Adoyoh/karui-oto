@@ -1,158 +1,208 @@
-# Karui Oto — pickers MPD con fzf
+# Karui Oto — ephemeral fzf pickers for MPD
 
-Buscadores por teclado para MPD: canciones, artistas, álbumes y carpetas en
-ventanas flotantes mínimas, con la elegida sonando al instante y el resto en
-aleatorio.
-Filosofía on-demand: **0 procesos en boot** — MPD arranca al primer pick y
-`Mod+X` (o `kill`) lo baja todo. Esc sin nada sonando también apaga.
+Keyboard-driven pickers for MPD: songs, artists, albums and folders in
+minimal floating windows. Pick one and it plays instantly, the rest
+shuffles behind it.
 
-## Requisitos
+On-demand philosophy: **0 boot processes** — MPD starts on the first pick
+and `Mod+X` (or `kill`) takes everything down. Esc with nothing playing
+shuts down too.
 
-| Obligatorio | Para qué | Notas |
-|---|---|---|
-| `mpd` | el daemon de música (tu config actual sirve) | probado 0.24 |
-| `mpc` | CLI contra MPD | probado 0.24 |
-| `fzf` | los pickers | reciente (~2024+; `install.sh` verifica `--accept-nth`) |
-| `bash`, `coreutils`, `grep` | shuf/sort/awk de toda la vida | |
-| `python3` (stdlib) | parsea `config.jsonc` (vendored, auditable) | duro desde v1.0 |
-| `kitty` **o** `foot` | la ventana flotante (`terminal`) | paridad total de flags |
-
-| Opcional | Para qué | Si falta |
-|---|---|---|
-| `mpdris2` | MPRIS (ver qué suena en tu barra) | `"mpris": false` |
-| `playerctl` | teclas multimedia (`karui-media`) | solo afecta a eso |
-| Nerd Font | iconos (lupa, puntero) | pon ascii en `icons` a mano |
-| `mutagen` (python) | utilitario de retag puntual | no es runtime |
-
-## Instalación (elige; ninguna toca tu `.bashrc`)
+## Quick start
 
 ```sh
 git clone https://github.com/Adoyoh/karui-oto.git && cd karui-oto
-./install.sh --dry-run   # mira qué haría (recomendado: léeme antes)
-./install.sh             # instala de verdad
+./install.sh --dry-run   # see what it would do
+./install.sh             # actually install
+karui-oto setup          # wizard: music dir, terminal, shortcuts
 ```
 
-1. Copia el árbol a `~/.local/share/karui-oto/` + symlinks en `~/.local/bin/`.
-2. Crea `~/.config/karui-oto/config.jsonc` **solo si no existe** (jamás la pisa).
-3. Imprime qué pegar en tu compositor (ver `binds/`: niri, hyprland).
+Press your shortcut, pick, listen. Edit `shortcuts{}`, save, and the next
+keypress already works (binds self-sync in the background).
 
-Alternativas: clonar a `~/apps/` y usar rutas absolutas en los binds (cero
-instalación), o symlink manual. Desinstalar: `./uninstall.sh [--purge] [comp]`
-(también borra nuestros binds del compositor con backup; tus propios binds
-quedan intactos).
-Si `~/.local/bin` no está en tu `PATH`, te lo dice pero **lo agregas tú**.
+## Requirements
 
-## Atajos (`shortcuts` + `karui-oto binds`)
+| Required | For | Notes |
+|---|---|---|
+| `mpd` | the music daemon (your current config works) | tested 0.24 |
+| `mpc` | CLI against MPD | tested 0.24 |
+| `fzf` | the pickers | recent (~2024+; `install.sh` checks `--accept-nth`) |
+| `bash`, `coreutils`, `grep` | everyday shuf/sort/awk | |
+| `python3` (stdlib) | parses `config.jsonc` (vendored, auditable) | |
+| `kitty` **or** `foot` | the picker window (`terminal`) | full flag parity |
 
-Los atajos viven en tu compositor, pero se **generan** desde la config:
-el bloque `"shortcuts"` viene activo-vacío (sin asignar); pon tus combos
-(`Mod+O`, `Mod+Shift+P`; string vacío = sin atajo) y corre:
+| Optional | For | If missing |
+|---|---|---|
+| `mpdris2` | MPRIS (see what's playing in your bar) | `"mpris": false` |
+| `playerctl` | media keys (`karui-media`) | MPD-only control |
+| Nerd Font | icons (magnifier, pointer) | plain ASCII in `icons` |
+| `mutagen` (python) | one-shot retag utility | not runtime |
+
+## Installation (nothing touches your `.bashrc`)
+
+1. Copies the tree to `~/.local/share/karui-oto/` + symlinks in `~/.local/bin/`.
+2. Creates `~/.config/karui-oto/config.jsonc` **only if missing** (never overwritten).
+3. Prints what to paste into your compositor (see `binds/`: niri, hyprland).
+
+Alternatives: clone to `~/apps/` and use absolute paths in the binds (zero
+installation), or manual symlink. Uninstall: `./uninstall.sh [--purge] [comp]`
+(also removes our compositor binds with backup; your own binds stay).
+If `~/.local/bin` is not on your `PATH`, it tells you but **you add it**.
+
+## Daily use
+
+| Command | Does |
+|---|---|
+| `karui-oto songs` / `artists` / `albums` / `folders` | open that picker (usually via shortcut) |
+| `karui-oto kill` | stop everything, drop the daemon (0 processes) |
+| `karui-media next\|prev\|play-pause` | media keys (MPD first, throttled) |
+| `karui-oto setup` | interactive wizard (writes `config.jsonc`) |
+| `karui-oto doctor` | health check: deps, config, binds, drift (offers one-time install) |
+| `karui-oto binds [comp]` | print the snippet; `--copy`, `--apply`, `--remove`, `--sync` |
+
+## Shortcuts (`shortcuts` + `karui-oto binds`)
+
+Shortcuts live in your compositor but are **generated** from the config:
+the `"shortcuts"` block starts empty (unassigned); set your combos
+(`Mod+O`, `Mod+Shift+P`; empty string = unassigned):
 
 ```sh
-karui-oto binds            # autodetecta niri|hyprland
-karui-oto binds hyprland   # o explicita
-karui-oto binds --copy     # al portapapeles (o avisa si no hay wl-copy/xclip)
+karui-oto binds            # autodetects niri|hyprland
+karui-oto binds hyprland   # or explicit
+karui-oto binds --copy     # to clipboard (or warns if no wl-copy/xclip)
 ```
 
-No necesitas aplicarlos a mano: cada vez que abres un picker, karui-oto
-sincroniza tus `shortcuts{}` con el compositor en segundo plano (backup +
-bloque marcado, `--remove` lo quita). Edita el jsonc, guarda, y a la
-siguiente pulsación ya funciona. `karui-oto binds --apply` sigue existiendo
-para hacerlo a mano con confirmación.
+No manual apply needed: every picker run reconciles your `shortcuts{}`
+with the compositor in a background subshell (backup + marked block,
+`--remove` reverts). Edit the jsonc, save, and the next keypress works
+(the keypress that triggers the sync still behaves the old way, once).
+`karui-oto binds --apply` still exists for manual installs with confirmation.
 
-Sin tocar archivos a mano, `setup` te ofrece aplicarlos al final, o directo:
-`karui-oto binds --apply` (pide confirmación, backup + bloque marcado,
-`--remove` lo quita). Cada compositor tiene su sintaxis — un ejemplo de
-cada uno con el mismo atajo (`songs` = `Mod+O`):
+Per-compositor shortcuts: each DE keeps its own binds. `shortcuts{}` is
+the default for both; optional `shortcuts_niri{}` / `shortcuts_hyprland{}`
+sections override per mode (absent section = inherit globals, empty mode =
+unassigned there). Assigning in one compositor never wipes the other.
+Switching to a compositor with no karui blocks yet? `doctor` offers the
+one-time install ([y/N]); or run `karui-oto binds --sync <comp>` once.
+
+Each compositor has its own syntax — same shortcut (`songs` = `Mod+O`):
 
 ```kdl
-# niri (dentro de binds {}):
+# niri (inside binds {}):
 Mod+O hotkey-overlay-title="karui-oto: search song" { spawn "bash" "-c" "~/.local/bin/karui-oto songs"; }
 ```
 ```lua
 -- hyprland.lua (>= 0.55, Lua; legacy hyprland.conf below for older).
 -- Paths go absolute because Lua exec_cmd does not expand ~:
-hl.bind(mainMod .. " + O", hl.dsp.exec_cmd("/home/tu-usuario/.local/bin/karui-oto songs"))
+hl.bind(mainMod .. " + O", hl.dsp.exec_cmd("/home/you/.local/bin/karui-oto songs"))
 ```
 ```ini
 # hyprland.conf (legacy, < 0.55):
 bind = $mainMod, O, exec, ~/.local/bin/karui-oto songs
 ```
 
-Pega la salida en tu compositor. `binds/` trae ejemplos completos a mano.
-Soportados: niri e hyprland (otros escritorios fueron recortados; el historial
-git conserva sus traductores por si vuelven algún día).
+Paste the output into your compositor. `binds/` holds full examples.
+Supported: niri and hyprland (other desktops were cut; git history keeps
+their translators in case they ever return).
 
-## Configuración (`~/.config/karui-oto/config.jsonc`)
+## Configuration (`~/.config/karui-oto/config.jsonc`)
 
-JSONC (JSON con `//` y `/* */`, como fastfetch). Todo comentado con defaults
-en `config.jsonc.example`, en el mismo orden que el código. Lo esencial:
+JSONC (JSON with `//` and `/* */`, like fastfetch). Everything commented
+with defaults in `config.jsonc.example`, in code order. Essentials:
 
-| Clave | Efecto |
+| Key | Effect |
 |---|---|
-| `terminal` = kitty\|foot | qué adaptador de `terminals/` abre el picker |
-| `path`, `mpd_conf` | tu música y tu mpd (se expande `~`, se valida que existan) |
-| `kitty` / `foot` (secciones) | config individual por terminal: `font`, `font_size`, `width`, `height`, `color`, `transparency` |
-| `color` | `"#rrggbb"` = fondo + texto por contraste auto; `""` = default |
-| `transparency` | 0.00–1.00 validado (kitty: solo fondo; foot: ventana entera, lava el texto si bajas de 1.0) |
-| `font`, `font_size` | familia fontconfig (se avisa si no existe) + puntos |
-| `theme` + sección `icons` | paleta (`themes/tuyo.sh`) y search/arrow/marker pegables |
-| `shuffle`/`repeat` | `random`/`repeat` on/off (+ con/sin `shuf`) — global |
-| `mpris` | mpDris2 diferido tras elegir (o nunca) — global |
-| `modes` | overrides por bind: `songs`/`artists`/`albums`/`folders` con su propio `shuffle`/`repeat`/`mpris`; `""` = hereda el global |
-| `logo` | logos del picker (kitty-only para imágenes): items `symbol` (texto/emoji en el header, con `color`/`size`/`position`) o `image` (logo de ventana kitty con `transparency`/`size`/posición de 9 puntos/`color`=tinte); `gif` no soportado, 1 imagen max, en foot las imágenes se ignoran |
-| `hide` | array de regex fuera del modo artistas |
+| `terminal` = kitty\|foot | which `terminals/` adapter opens the picker |
+| `path`, `mpd_conf` | your music and your mpd (`~` expands, both must exist) |
+| `kitty` / `foot` (sections) | per-terminal config: `font`, `font_size`, `width`, `height`, `color`, `transparency` |
+| `color` | `"#rrggbb"` = background + auto-contrast text; `""` = default |
+| `transparency` | 0.00–1.00 validated (kitty: background only; foot: whole window, washes text out below 1.0) |
+| `font`, `font_size` | fontconfig family (warns if missing, cached 24h) + points |
+| `theme` + `icons` section | palette (`themes/yours.sh`) and search/arrow/marker/album glyphs |
+| `shuffle`/`repeat` | `random`/`repeat` on/off — global |
+| `mpris` | deferred mpDris2 after picking (or never) — global |
+| `modes` | per-bind overrides: `songs`/`artists`/`albums`/`folders` with their own `shuffle`/`repeat`/`mpris`; `""` = inherit global |
+| `shortcuts_niri` / `shortcuts_hyprland` | per-compositor overrides (absent = inherit `shortcuts{}`) |
+| `term_class` | window app-id for compositor rules (letters, digits, `_.-` only) |
+| `min_tracks` | artists mode: hide artists with fewer tracks (1 = show all) |
+| `logo` | picker logos (kitty-only for images): `symbol` items (text/emoji in the header, with `color`/`size`/`position`) or one `image` (kitty window logo with perceptual `transparency`/0–100 `size`/9-point `position`/`color`=tint); `gif` unsupported, 1 image max, ignored on foot |
+| `hide` | regex array filtered out of artists mode (each must compile) |
 
-Clave desconocida = aviso (typo probable). Valor inválido = fatal con mensaje.
+Unknown key = warning (likely typo). Invalid value = fatal with message
+and offending lines. The `logo` image path must exist.
 
-Overrides puntuales sin tocar el archivo (tests, aliases):
-`KARUI_OTO_CONFIG=/ruta/otra.jsonc` (otra config) y
-`KARUI_OTO_TERMINAL=foot` (otro terminal con tu config real).
+One-off overrides without touching the file (tests, aliases):
+`KARUI_OTO_CONFIG=/path/other.jsonc` (another config) and
+`KARUI_OTO_TERMINAL=foot` (another terminal with your real config).
 
-## Shells y fuentes
+## Doctor (`karui-oto doctor`)
 
-Funciona **desde cualquier shell** (bash, zsh, fish, dash): los scripts
-llevan shebang `#!/bin/bash` (siempre corren en bash) y los aliases son
-POSIX. Nada que configurar por shell.
+Read-only health check (except one consented write, see below):
 
-Las fuentes se buscan en la base fontconfig (`~/.fonts`,
-`~/.local/share/fonts`, `/usr/share/fonts`, ...): pon tus `.ttf/.otf` ahí
-y verifica con `fc-match "Nombre"`. Al arrancar, el programa avisa si tu
-`font` no existe (y usa fallback); la default (Liberation Mono) se verifica
-en `install.sh` solo como aviso, no como bloqueo.
+| # | Check |
+|---|---|
+| 0 | Config parses and validates (syntax errors shown with lines + hints) |
+| 1 | Hard deps: bash, mpc, mpd, fzf, python3 (+ `--accept-nth`), terminal |
+| 2 | Optionals, never fatal: mpDris2, playerctl |
+| 3 | MPD alive + non-empty library (down is normal: on-demand) |
+| 4 | Non-empty music dir + installed font |
+| 5 | Binds per mode (installed/conflict/missing), media keys 3/3, drift vs `shortcuts{}` |
+| 6 | Logo setup (symbols/images, foot caveat, PIL tint backend) |
 
-## Convenciones de biblioteca
+Plus: stale `xdg-desktop-portal-gnome` warning (it stalls portal requests
+~25s without GNOME Shell — not a karui-oto bug), and the interactive
+one-time install offer when the current compositor has no karui blocks
+yet (`[y/N]`, backup + validation; piped runs only print the fix).
 
-- **Artistas:** por tags `artist`+`albumartist` (vale cualquier layout:
-  singles sueltos, una carpeta con todo). `X feat. Y` sale en X **y** en Y;
-  `min_tracks` (default 1 = muestra todo; 2 oculta invitados de un solo tema). Tidy users:
-  modo `folders`.
-- **Canciones/álbumes:** por tags (`artist/album/title`; `%artist%` muestra el
-  primer valor en tags múltiples). Álbumes ambiguos ("Greatest Hits") se
-  desambiguan con artista (`find album+artist` exactos).
-- **Carpetas:** cualquier subcarpeta tal cual (`Artista/[Año] Álbum` directo).
+## Shells and fonts
 
-## Quirks conocidos (documentados, no bugs pendientes)
+Works **from any shell** (bash, zsh, fish, dash): scripts carry a
+`#!/bin/bash` shebang (always run in bash) and aliases are POSIX. Nothing
+to configure per shell.
 
-- `mpc playlist` imprime `Artista - Título`, **no paths**: jamás se ubica un
-  tema con grep sobre playlist (ver `lib/picker.sh`).
-- `mpc insert` agrega **al final** en mpd 0.24/mpc 0.24 (el man dice después
-  de la actual): el código no depende de su posición.
-- `mpc listall -f` **ignora** el formato: la lista con tags sale de
-  `mpc search -f ... title ""` (matchea todo, ~0.3s en 5k temas).
-- `mpc play` pelado con random on arranca al azar: siempre `play <N>`.
-- Kitty tarda ~25s en abrir / diálogos GTK colgados en Hyprland o Niri:
-  suele ser `xdg-desktop-portal-gnome` sin GNOME Shell (cuelga los
-  portales Settings y FileChooser). No es fallo de karui-oto (`doctor`
-  lo avisa): `sudo apt remove xdg-desktop-portal-gnome` (Nautilus
-  sigue igual, usa libportal). Efecto medido: kitty 26.5s → ~1s.
+Fonts resolve through fontconfig (`~/.fonts`,
+`~/.local/share/fonts`, `/usr/share/fonts`, ...): drop your `.ttf/.otf`
+there and check with `fc-match "Name"`. Startup warns if your `font` is
+missing (with fallback); the default (Liberation Mono) is only advisory.
+
+## Library conventions
+
+- **Artists:** by `artist`+`albumartist` tags (any layout works: loose
+  singles, one folder with everything). `X feat. Y` shows under X **and** Y;
+  `min_tracks` (default 1 = show all; 2 hides one-track guests). Tidy users:
+  `folders` mode.
+- **Songs/albums:** by tags (`artist/album/title`; `%artist%` shows the
+  first value of multi-tags). Ambiguous albums ("Greatest Hits") disambiguate
+  by artist (exact album+artist find).
+- **Folders:** any subtree as-is (`Artist/[Year] Album` straight through).
+
+## Troubleshooting (known quirks, not pending bugs)
+
+- `mpc playlist` prints `Artist - Title`, **not paths**: never locate a
+  track by grepping the playlist (see `lib/picker.sh`).
+- `mpc insert` appends **at the end** on mpd 0.24/mpc 0.24 (the man page
+  says after current): the code never depends on position.
+- `mpc listall -f` **ignores** the format: the tagged list comes from
+  `mpc search -f ... title ""` (matches all, ~0.3s on 5k tracks).
+- Bare `mpc play` with random on starts anywhere: always `play <N>`.
+- Kitty takes ~25s to open / GTK dialogs hang on Hyprland or Niri:
+  usually `xdg-desktop-portal-gnome` without GNOME Shell (stalls the
+  Settings and FileChooser portals). Not a karui-oto bug (`doctor`
+  warns): `sudo apt remove xdg-desktop-portal-gnome` (Nautilus is
+  unaffected, it uses libportal). Measured effect: kitty 26.5s → ~1s.
+- Changed `shortcuts{}` but keys still run the old command? The sync heals
+  it on the next picker run (`doctor` shows drift meanwhile). Fresh
+  compositor with no binds at all? `doctor` offers the one-time install.
 
 ## Roadmap
 
-- [ ] Temas extra (latte claro, nord) + `background_image` pixel-art opcional
-- [ ] Empaquetado real (AUR, .deb, home-manager) para no usar install.sh
-- [ ] Modo géneros/listary por M3U
+Done: background auto-sync, Hyprland Lua binds, strict validation with
+line numbers, `tests/smoke.sh`, per-compositor shortcuts.
 
-## Licencia
+- [ ] Extra themes (light latte, nord) + optional pixel-art `background_image`
+- [ ] Real packaging (AUR, .deb, home-manager) to retire install.sh
+- [ ] Genres/listary mode via M3U
 
-MIT — ver `LICENSE`. Edita el titular con tu nombre al forkear.
+## License
+
+MIT — see `LICENSE`. Edit the holder with your name when forking.

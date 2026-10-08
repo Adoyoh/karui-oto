@@ -4,9 +4,10 @@
 # ----------------------------------------------------------------------------
 # WHAT:
 #   Verifies dependencies, config, MPD, fonts and installed binds. Every
-#   finding prints [OK]/[WARN]/[FAIL] plus its exact remediation. NEVER
-#   writes anything: the answers to "why doesn't my shortcut work" live
-#   here without side effects.
+#   finding prints [OK]/[WARN]/[FAIL] plus its exact remediation. Read-only
+#   EXCEPT one consented write: when shortcuts exist but the current
+#   compositor never got them (fresh compositor), doctor offers to install
+#   them ([y/N], default N, backup + validation). Piped runs never write.
 #
 # WHERE IT FITS:
 #   `karui-oto doctor`. Sourced AFTER common.sh (uses load_config result
@@ -28,15 +29,23 @@ fail() { SP_FAIL=$((SP_FAIL + 1)); printf '[FAIL] %s\n' "$1"; }
 cmd_doctor() {
     source "$KO_ROOT/lib/binds.sh"
     source "$KO_ROOT/lib/bindsinstall.sh"  # comp_file/binds_conflict (translators above)
-    # 0. Config itself (fatal here = finding #1, stop).
-    if ! load_config 2>/tmp/ko_doc.err; then
-        fail "config invalid: $(head -n 1 /tmp/ko_doc.err). Fix: karui-oto setup"
+    # 0. Config itself (fatal finding #1, but NOT a stop: config-independent
+    # checks below still run so one broken file never hides everything else).
+    # load_config dies on failure, so it runs in a subshell first: the
+    # [FAIL]/result accounting stays reachable. Full stderr block shown
+    # (jconfig prints error + offending lines + hint). Second call loads
+    # for real when the first passed.
+    local CONFIG_OK=1
+    if ! ( load_config ) >/dev/null 2>/tmp/ko_doc.err; then
+        fail "config invalid. Fix the message below (or run karui-oto setup)"
+        cat /tmp/ko_doc.err >&2
         rm -f /tmp/ko_doc.err
-        printf 'result: 0 ok, 0 warnings, 1 failure\n' >&2
-        return 1
+        CONFIG_OK=0
+    else
+        rm -f /tmp/ko_doc.err
+        load_config >/dev/null 2>&1
+        ok "config loads: $KARUI_OTO_CONFIG"
     fi
-    rm -f /tmp/ko_doc.err
-    ok "config loads: $KARUI_OTO_CONFIG"
 
     # 1. Hard deps (+ fzf feature probe).
     local missing=0 c
@@ -49,10 +58,14 @@ cmd_doctor() {
     else
         fail "fzf too old (no --accept-nth). Fix: upgrade fzf (~2024+)"
     fi
-    if command -v "$TERMINAL" >/dev/null 2>&1; then
-        ok "terminal installed: $TERMINAL"
+    if [ "$CONFIG_OK" = "1" ]; then
+        if command -v "$TERMINAL" >/dev/null 2>&1; then
+            ok "terminal installed: $TERMINAL"
+        else
+            fail "terminal missing: $TERMINAL. Fix: install it or set terminal= accordingly"
+        fi
     else
-        fail "terminal missing: $TERMINAL. Fix: install it or set terminal= accordingly"
+        printf '[INFO] terminal check skipped (config invalid)\n'
     fi
 
     # 2. Optionals (never fatal).
@@ -74,22 +87,29 @@ cmd_doctor() {
         printf '[INFO] mpd is down (normal: on-demand, starts on first pick)\n'
     fi
 
-    # 4. Music dir + font.
-    [ -d "$MUSIC_DIR" ] && [ -n "$(ls -A "$MUSIC_DIR" 2>/dev/null)" ] \
-        && ok "music dir non-empty: $MUSIC_DIR" \
-        || fail "music dir missing/empty: $MUSIC_DIR. Fix: path in config"
-    fc-list : family 2>/dev/null | grep -qi "^${FONT}$" \
-        && ok "font present: $FONT" \
-        || warn "font missing: $FONT (falls back; install it or change font)"
+    # 4. Music dir + font (need config values).
+    if [ "$CONFIG_OK" = "1" ]; then
+        [ -d "$MUSIC_DIR" ] && [ -n "$(ls -A "$MUSIC_DIR" 2>/dev/null)" ] \
+            && ok "music dir non-empty: $MUSIC_DIR" \
+            || fail "music dir missing/empty: $MUSIC_DIR. Fix: path in config"
+        font_present_cached \
+            && ok "font present: $FONT" \
+            || warn "font missing: $FONT (falls back; install it or change font)"
+    else
+        printf '[INFO] music dir + font checks skipped (config invalid)\n'
+    fi
 
-    # 5. Binds: installed? conflicts? drift? (file targets need the config
-    # file to be readable).
+    # 5. Binds: installed? conflicts? drift? (needs shortcuts{} values).
+    # Fresh-compositor offer lives at the end of this section.
+    if [ "$CONFIG_OK" = "0" ]; then
+        printf '[INFO] binds checks skipped (config invalid)\n'
+    else
     local comp
     comp="$(detect_compositor 2>/dev/null)" || comp=""
     if [ -z "$comp" ]; then
         printf '[INFO] desktop not detected: binds check skipped (run: karui-oto binds [niri|hyprland])\n'
     else
-        local file mode combo var line
+        local file mode combo line
         file="$(comp_file "$comp" 2>/dev/null)"
         if [ "$comp" = "hyprland" ]; then
             printf '[INFO] hyprland syntax: %s (%s)\n' "$(hypr_variant)" "$file"
@@ -111,7 +131,7 @@ cmd_doctor() {
             # need binds_conflict from bindsinstall (translators already here)
             local checked=0
             for mode in songs artists albums folders kill; do
-                var="SHORTCUTS_${mode^^}"; combo="${!var}"
+                combo="$(shortcut_for "$mode" "$comp")"
                 [ -n "$combo" ] || continue
                 checked=1
                 if line="$(binds_conflict "$comp" "$combo" 2>/dev/null)"; then
@@ -148,7 +168,38 @@ cmd_doctor() {
             else
                 warn "binds drift detected ($comp): ${_drift//$'\n'/; } -- fix: karui-oto binds --sync $comp"
             fi
+            # Fresh compositor (never installed here): offer the one-time
+            # install. Fires only with shortcuts assigned, our markers fully
+            # absent, and a writable target file. Default N; piped runs only
+            # get the remediation line. This is the single doctor write path
+            # (backup + validation inside the flow); everything else is read.
+            if [ "$checked" -eq 1 ]; then
+                local _has=0 _df
+                for _df in $(comp_files_all "$comp"); do
+                    if grep -qF -- "$(mark_open "$comp")" "$_df" 2>/dev/null \
+                        || grep -qF -- "$(mark_open_rules "$comp")" "$_df" 2>/dev/null; then
+                        _has=1; break
+                    fi
+                done
+                if [ "$_has" -eq 0 ] && [ -f "$file" ] && [ -w "$file" ]; then
+                    if [ -t 0 ]; then
+                        local _ans
+                        printf 'No shortcuts assigned to the current compositor (switched compositors?). Install them now? [y/N] ' >&2
+                        IFS= read -r _ans
+                        case "$_ans" in
+                            y|Y|yes|YES)
+                                # Consent given: feed it to the flow so it
+                                # does not ask twice (stdin may be exhausted).
+                                printf 'y\n' | binds_apply_flow "$comp" ;;
+                            *) printf '[INFO] skipped: run karui-oto binds --apply %s when ready\n' "$comp" ;;
+                        esac
+                    else
+                        printf '[INFO] no karui blocks in %s: run karui-oto binds --apply %s to install\n' "$file" "$comp"
+                    fi
+                fi
+            fi
     fi
+    fi  # end CONFIG_OK=1 binds section; 5b below is config-free
 
     # 5b. Portal backend sanity (static check, never probed: a hanging probe
     # would stall doctor itself). The gnome portal backend needs GNOME Shell;
@@ -165,6 +216,10 @@ cmd_doctor() {
     # 6. Logo (kitty-only images, universal symbols). Config already passed
     # validate(), so this only reports EFFECTIVE state (foot ignores images,
     # tint without PIL falls back to the original).
+    # 6. Logo (needs config values; skipped with INFO when invalid).
+    if [ "$CONFIG_OK" = "0" ]; then
+        printf '[INFO] logo check skipped (config invalid)\n'
+    else
     local _ln="${LOGO_COUNT:-0}" _nsym=0 _nimg=0 _li
     for ((_li = 0; _li < _ln; _li++)); do
         if [ -n "$(eval "printf '%s' \"\${LOGO_${_li}_SYMBOL:-}\"")" ]; then
@@ -196,6 +251,7 @@ cmd_doctor() {
             fi
         fi
     fi
+    fi  # end CONFIG_OK=1 logo section
 
     printf 'result: %s ok, %s warnings, %s failures\n' "$SP_OK" "$SP_WARN" "$SP_FAIL" >&2
     [ "$SP_FAIL" -eq 0 ]

@@ -1,6 +1,19 @@
 # CHANGELOG — format: `## [version] - date` (newest on top)
 
-## [1.1.0] - 2026-10-02
+## [1.2.0] - 2026-10-02
+- README rewritten in English + doctor section; per-compositor shortcuts
+  docs; roadmap refreshed.
+- Logo image transparency is perceptual now (cubed: 0.40 acts like 0.06,
+  0.10 nearly invisible); ends 0.00/1.00 exact. Existing values render
+  stronger than before.
+- Per-compositor shortcuts: shortcuts_niri{}/shortcuts_hyprland{} override
+  the global shortcuts{} per mode (absent = inherit, empty = unassigned);
+  one DE never wipes the other. doctor offers the one-time install on
+  fresh compositors ([y/N]); Niri reloads live after apply/remove.
+- Trim: comp_is_file() removed (0 callers); canonical-shortcut regex
+  unified in combo_canonical_ok() (validate + setup share it).
+- Faster startup: fontconfig check cached 24h (~10ms saved per picker
+  open; misses never cached; KO_NO_FONT_CACHE=1 bypasses).
 - BREAKING: compositors cut to niri + hyprland (sway/i3/openbox/bspwm and
   the gnome/kde/xfce/cinnamon/mate live backends removed; git history
   keeps them). All lists, docs and examples updated.

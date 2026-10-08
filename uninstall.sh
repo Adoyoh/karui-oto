@@ -47,6 +47,7 @@ clean_file_comp() {  # <comp>: remove our marked blocks if present (backup first
                     cp -a "$bak" "$file"
                     printf 'uninstall: niri validate FAILED — restored backup, binds kept\n' >&2
                 }
+                niri msg action load-config-file >/dev/null 2>&1 || true
             fi
         fi
     done

@@ -108,6 +108,15 @@ defaults() {
     SHORTCUTS_ALBUMS=""
     SHORTCUTS_FOLDERS=""
     SHORTCUTS_KILL=""
+    # Per-compositor overrides (empty section parts). A compositor inherits
+    # the global SHORTCUTS_* unless its _PRESENT flag is set (jconfig sets
+    # it when the section exists, even empty: empty mode = unassigned there).
+    SHORTCUTS_NIRI_SONGS="";      SHORTCUTS_NIRI_ARTISTS=""
+    SHORTCUTS_NIRI_ALBUMS="";     SHORTCUTS_NIRI_FOLDERS=""
+    SHORTCUTS_NIRI_KILL="";       SHORTCUTS_NIRI_PRESENT=""
+    SHORTCUTS_HYPRLAND_SONGS="";  SHORTCUTS_HYPRLAND_ARTISTS=""
+    SHORTCUTS_HYPRLAND_ALBUMS=""; SHORTCUTS_HYPRLAND_FOLDERS=""
+    SHORTCUTS_HYPRLAND_KILL="";   SHORTCUTS_HYPRLAND_PRESENT=""
     # Per-mode overrides (jsonc key: modes.<mode>.<knob>). Empty = inherit
     # the global SHUFFLE/REPEAT/MPRIS above; true/false wins for that mode.
     MODES_SONGS_SHUFFLE="";   MODES_SONGS_REPEAT="";   MODES_SONGS_MPRIS=""
@@ -317,7 +326,8 @@ derivados_logo() {
         fi
     fi
     # Kitty window logo (single image). Tint preprocesses RGB only; alpha
-    # stays native via window_logo_alpha (validated range, see validate()).
+    # stays native via window_logo_alpha (validated range, see validate()),
+    # mapped through perceptual_alpha() so low values bite harder.
     if [ "$LOGO_IMAGE_COUNT" -ge 1 ] && [ -f "$img_path" ]; then
         local final="$img_path"
         if [[ "$img_tint" =~ ^#?[0-9a-fA-F]{6}$ ]]; then
@@ -325,14 +335,67 @@ derivados_logo() {
             final="$(logo_tinted "$img_path")"
         fi
         KITTY_LOGO_OPTS=(-o "window_logo_path=$final"
-            -o "window_logo_alpha=$img_alpha"
+            -o "window_logo_alpha=$(perceptual_alpha "$img_alpha")"
             -o "window_logo_scale=$img_size"
             -o "window_logo_position=$img_pos")
     fi
 }
 
+# perceptual_alpha <0.00-1.00>: cube the input for kitty window logos.
+# Brightness perception is nonlinear: even a squared curve left 0.10
+# clearly visible, forcing users near zero for background images. Cubing
+# maps the knob to perceived strength (0.10 -> 0.00, 0.40 -> 0.06,
+# 0.60 -> 0.22) while keeping both ends exact (0 -> 0.00, 1 -> 1.00).
+# Validation still applies to the INPUT range, so no other code changes.
+perceptual_alpha() {
+    awk -v v="${1:-1.0}" 'BEGIN{ if (v < 0) v = 0; if (v > 1) v = 1; printf "%.2f", v * v * v }'
+}
+
 # --- Strict validation: fail fast with a clear message -----------------------
-KNOWN_KEYS="path mpd_conf terminal term_class kitty foot theme icons shuffle repeat mpris min_tracks hide shortcuts modes logo"
+KNOWN_KEYS="path mpd_conf terminal term_class kitty foot theme icons shuffle repeat mpris min_tracks hide shortcuts shortcuts_niri shortcuts_hyprland modes logo"
+# shortcut_for <mode-lower> <comp>: effective combo for the compositor.
+# Own section present -> its value (empty = unassigned there); otherwise
+# the global shortcuts{} value. Unknown comps resolve to "" (never die
+# here: callers decide).
+shortcut_for() {
+    local m="${1^^}" c pvar var
+    case "${2,,}" in
+        niri) c="NIRI" ;;
+        hyprland) c="HYPRLAND" ;;
+        *) printf '%s' ""; return 0 ;;
+    esac
+    pvar="SHORTCUTS_${c}_PRESENT"; var="SHORTCUTS_${c}_${m}"
+    if [ "${!pvar:-}" = "true" ]; then printf '%s' "${!var:-}";
+    else var="SHORTCUTS_${m}"; printf '%s' "${!var:-}"; fi
+}
+# combo_canonical_ok <combo>: 0 if canonical shortcut form. Single source
+# of truth: setup.sh combo_ok() delegates here, validate() below enforces.
+combo_canonical_ok() {
+    local re_combo='^(Mod|Shift|Ctrl|Alt)(\+(Mod|Shift|Ctrl|Alt))*\+([A-Z0-9]|F[0-9]{1,2}|XF86[A-Za-z]+|space|Tab|Escape|Return|BackSpace|Delete|Insert|Home|End|Page_Up|Page_Down)$'
+    local re_bare='^(F[0-9]{1,2}|XF86[A-Za-z]+)$'
+    [[ "$1" =~ $re_combo ]] || [[ "$1" =~ $re_bare ]]
+}
+# font_present_cached: 0 if $FONT resolves via fontconfig. Caches positive
+# hits for 24h under ~/.cache/karui-oto (fonts rarely change; saves ~26ms
+# per picker launch). Misses are never cached (always re-warned).
+# KO_NO_FONT_CACHE=1 bypasses the cache (deterministic tests).
+font_present_cached() {
+    if [ -n "${KO_NO_FONT_CACHE:-}" ]; then
+        fc-list : family 2>/dev/null | grep -qi "^${FONT}$"
+        return "$?"
+    fi
+    local cache="$HOME/.cache/karui-oto/fontcheck"
+    if [ -f "$cache" ] && [ "$(cat "$cache" 2>/dev/null)" = "$FONT" ] \
+        && [ -n "$(find "$cache" -mtime -1 2>/dev/null)" ]; then
+        return 0
+    fi
+    if fc-list : family 2>/dev/null | grep -qi "^${FONT}$"; then
+        mkdir -p "$(dirname "$cache")"
+        printf '%s' "$FONT" > "$cache"
+        return 0
+    fi
+    return 1
+}
 validate() {
     # Unknown keys = warning (likely typo), not fatal.
     local k
@@ -455,18 +518,29 @@ validate() {
     # Mod+Shift+P. Bare keys only for F-keys/XF86 (a bare "C" would hijack
     # typing, so it is rejected on purpose). Lowercase "mod+c" is rejected
     # too: sway/i3 need the $mod variable and niri matching gets ambiguous.
-    local re_combo='^(Mod|Shift|Ctrl|Alt)(\+(Mod|Shift|Ctrl|Alt))*\+([A-Z0-9]|F[0-9]{1,2}|XF86[A-Za-z]+|space|Tab|Escape|Return|BackSpace|Delete|Insert|Home|End|Page_Up|Page_Down)$'
-    local re_bare='^(F[0-9]{1,2}|XF86[A-Za-z]+)$' sc
+    local sc
     for sc in SONGS ARTISTS ALBUMS FOLDERS KILL; do
         var="SHORTCUTS_$sc"
         [ -n "${!var}" ] || continue
-        [[ "${!var}" =~ $re_combo || "${!var}" =~ $re_bare ]] \
+        combo_canonical_ok "${!var}" \
             || die "shortcuts.${sc,,}='${!var}' invalid (canonical: Mod+O, Mod+Shift+P, XF86AudioPlay)"
     done
+    # Per-compositor overrides use the same canonical form (empty inherits
+    # nothing here: an existing section owns every mode, empty = unassigned).
+    local _pc _pv
+    for _pc in NIRI HYPRLAND; do
+        _pv="SHORTCUTS_${_pc}_PRESENT"
+        [ "${!_pv:-}" = "true" ] || continue
+        for sc in SONGS ARTISTS ALBUMS FOLDERS KILL; do
+            var="SHORTCUTS_${_pc}_${sc}"
+            [ -n "${!var}" ] || continue
+            combo_canonical_ok "${!var}" \
+                || die "shortcuts_${_pc,,}.${sc,,}='${!var}' invalid (canonical: Mod+O, Mod+Shift+P, XF86AudioPlay)"
+        done
+    done
     # Font: active one only (the other may not exist if never used).
-    if ! fc-list : family 2>/dev/null | grep -qi "^${FONT}$"; then
-        printf 'karui-oto: warning: font "%s" not found (will fall back)\n' "$FONT" >&2
-    fi
+    font_present_cached \
+        || printf 'karui-oto: warning: font "%s" not found (will fall back)\n' "$FONT" >&2
     [ -d "$MUSIC_DIR" ] || die "path does not exist: $MUSIC_DIR"
     [ -f "$MPD_CONF" ] || die "mpd_conf does not exist: $MPD_CONF"
     # -f not -x: .sh files are sourced, not executed (+x belongs to

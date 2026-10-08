@@ -30,15 +30,6 @@
 #   - conflict = warn + suggest, NEVER auto-replace someone else's bind.
 # ============================================================================
 
-# comp_is_file <comp>: both targets live in text files (live-setting
-# backends were cut with the descope to niri+hyprland).
-comp_is_file() {
-    case "$1" in
-        niri|hyprland) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
 # comp_file <comp>: print compositor config path (XDG-aware, no checks).
 # hyprland autodetects Lua vs legacy (see hypr_variant in binds.sh).
 comp_file() {
@@ -144,9 +135,9 @@ rules_foreign() {
 # Prints human lines (missing/orphan/moved/media/rules) and returns 1 on
 # ANY drift, 0 when installed == configured (silent then). Pure reads.
 binds_drift() {
-    local comp="$1" mode combo var line drift=0
+    local comp="$1" mode combo line drift=0
     for mode in songs artists albums folders kill; do
-        var="SHORTCUTS_${mode^^}"; combo="${!var}"
+        combo="$(shortcut_for "$mode" "$comp")"
         if [ -z "$combo" ]; then
             # Empty in config but still installed = orphan firing stale.
             line="$(installed_mode_line "$comp" "$mode")"
@@ -308,7 +299,14 @@ validate_comp() {
             niri validate >/dev/null 2>&1 || {
                 cp -a "$bak" "$file"
                 die "niri validate FAILED — restored backup, nothing changed"
-            } ;;
+            }
+            # Live reload like the hyprland branch (best-effort, never
+            # fatal): without it new binds wait for a manual reload.
+            if niri msg action load-config-file >/dev/null 2>&1; then
+                printf 'niri reloaded live\n' >&2
+            else
+                printf 'note: niri not running here (reload: %s)\n' "$(reload_hint "$comp")" >&2
+            fi ;;
         i3|openbox|bspwm|sway|gnome|cinnamon|mate|kde|xfce)
             die "unsupported desktop: $comp (karui-oto supports: niri hyprland)" ;;
         hyprland)

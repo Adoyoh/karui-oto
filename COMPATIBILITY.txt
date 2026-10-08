@@ -25,6 +25,9 @@ LEYENDA
             bloque marcado; sin archivo = fallback guiado, nunca fatal.
 
 NOTAS
+  - shortcuts{} globales aplican a ambos; shortcuts_niri{} y
+    shortcuts_hyprland{} los pisan por modo (ausente = hereda, vacío =
+    sin asignar). Un compositor jamás borra los binds del otro.
   - Edita shortcuts{} y guarda: a la siguiente pulsación ya funciona.
     La pulsación que dispara el sync aún se comporta "a la vieja";
     borrados y reasignaciones quedan efectivos desde la segunda.

@@ -2,9 +2,11 @@
 
 ### Kitty
 ![Picker en Kitty](Examples/Kittysongs1.png)
+![Artistas en Kitty](Examples/2 artistas.png)
 
 ### Foot
-![Picker en Foot](Examples/Foot1.png)
+![Picker en Foot](Examples/foot1.png)
+![Artistas en Foot](Examples/foot2.png)
 
 
 Keyboard-driven pickers for MPD: songs, artists, albums and folders in

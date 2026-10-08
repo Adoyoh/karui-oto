@@ -185,7 +185,24 @@ missing (with fallback); the default (Liberation Mono) is only advisory.
   by artist (exact album+artist find).
 - **Folders:** any subtree as-is (`Artist/[Year] Album` straight through).
 
-## Troubleshooting (known quirks, not pending bugs)
+## High AI usage
+
+Heavy AI use in this project. I'm learning to program on my own, much
+like I started using Linux just a couple of months ago. Everything
+uploaded here goes through my hands and gets tested on my machine first.
+
+## Why this exists
+
+This began as a purely personal project: I felt no need for a
+traditional player sitting in the background, and I wanted a fast
+launcher I could summon from any window — no hopping over to the player,
+just pick and keep flowing, made beautiful along the way. I liked the
+result enough to grow it with more features, and even tested and tuned
+it on Hyprland (not my daily driver) so more people can enjoy it their
+own way. And yeah — I kept adding features for you lot, so if you like
+it, know it cost me sleep. Enjoy it like I do, bastards.
+
+## Troubleshooting
 
 - `mpc playlist` prints `Artist - Title`, **not paths**: never locate a
   track by grepping the playlist (see `lib/picker.sh`).

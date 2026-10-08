@@ -1,5 +1,12 @@
 # Karui Oto — ephemeral fzf pickers for MPD
 
+### Kitty
+![Picker en Kitty](Examples/Kittysongs1.png)
+
+### Foot
+![Picker en Foot](Examples/Foot1.png)
+
+
 Keyboard-driven pickers for MPD: songs, artists, albums and folders in
 minimal floating windows. Pick one and it plays instantly, the rest
 shuffles behind it.

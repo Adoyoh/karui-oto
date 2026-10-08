@@ -117,7 +117,7 @@ their translators in case they ever return).
 
 ## Configuration (`~/.config/karui-oto/config.jsonc`)
 
-JSONC (JSON with `//` and `/* */`, like fastfetch). Everything commented
+Everything commented
 with defaults in `config.jsonc.example`, in code order. Essentials:
 
 | Key | Effect |
@@ -125,10 +125,10 @@ with defaults in `config.jsonc.example`, in code order. Essentials:
 | `terminal` = kitty\|foot | which `terminals/` adapter opens the picker |
 | `path`, `mpd_conf` | your music and your mpd (`~` expands, both must exist) |
 | `kitty` / `foot` (sections) | per-terminal config: `font`, `font_size`, `width`, `height`, `color`, `transparency` |
-| `color` | `"#rrggbb"` = background + auto-contrast text; `""` = default |
+| `color` | `"#rrggbb"` (bare `rrggbb` without `#` also valid; color names like `blue` are rejected) = background + auto-contrast text; `""` = default |
 | `transparency` | 0.00–1.00 validated (kitty: background only; foot: whole window, washes text out below 1.0) |
 | `font`, `font_size` | fontconfig family (warns if missing, cached 24h) + points |
-| `theme` + `icons` section | palette (`themes/yours.sh`) and search/arrow/marker/album glyphs |
+| `theme` + `icons` section | palette (`themes/yours.sh`) and search/arrow/marker/album/folder glyphs (empty glyph allowed) |
 | `font-colors` (optional) | per-element tints, all `""` = inherit theme: text `artist/album/track/separator`, matches `highlight/highlight_selected`, glyphs `prompt/pointer/marker`, chrome `header/info/border/border-label/list-label/scrollbar/gutter`. Format `#rrggbb` |
 | `shuffle`/`repeat` | `random`/`repeat` on/off — global |
 | `mpris` | deferred mpDris2 after picking (or never) — global |
@@ -136,7 +136,7 @@ with defaults in `config.jsonc.example`, in code order. Essentials:
 | `shortcuts_niri` / `shortcuts_hyprland` | per-compositor overrides (absent = inherit `shortcuts{}`) |
 | `term_class` | window app-id for compositor rules (letters, digits, `_.-` only) |
 | `min_tracks` | artists mode: hide artists with fewer tracks (1 = show all) |
-| `logo` | picker logos (kitty-only for images): `symbol` items (text/emoji in the header, with `color`/`size`/`position`) or one `image` (kitty window logo with perceptual `transparency`/0–100 `size`/9-point `position`/`color`=tint); `gif` unsupported, 1 image max, ignored on foot |
+| `logo` | picker logos (kitty-only for images): unlimited `symbol` items (text/emoji in the header; `color` as `#rrggbb`, empty = theme pink; `size` = `small`\|`normal`\|`large`, empty = `normal`; `position` = `left`\|`center`\|`right`, empty = `left`) or a single `image` per whole config (kitty window logo: existing file path, `transparency` 0.00–1.00 perceptual with empty = 1.0, `size` integer 0–100 with 0 = native, `position` one of `top-left` `top` `top-right` `left` `center` `right` `bottom-left` `bottom` `bottom-right` with empty = `bottom-right`, `color` = `#rrggbb` tint needing python3-pil); `gif` unsupported, images ignored on foot |
 | `hide` | regex array filtered out of artists mode (each must compile) |
 
 Unknown key = warning (likely typo). Invalid value = fatal with message

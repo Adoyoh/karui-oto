@@ -1,6 +1,7 @@
 # Karui Oto — ephemeral fzf pickers for MPD
 
 [Hyprland] [niri]
+
 Keyboard-driven pickers for MPD: songs, artists, albums and folders in
 minimal floating windows. Pick one and it plays instantly, the rest
 shuffles behind it.

@@ -5,7 +5,8 @@
 # CONTRACT (read me before running — short on purpose):
 #   YES: read-only checks, copy project files to
 #        ~/.local/share/karui-oto/, symlink into ~/.local/bin/,
-#        create ~/.config/karui-oto/config.jsonc ONLY if missing.
+#        create ~/.config/karui-oto/config.jsonc ONLY if missing (sized
+#        to ~75% of the detected screen: DRM sysfs, xrandr, else 1080p).
 #   NO:  sudo, network, touching existing dotfiles (.bashrc etc.),
 #        overwriting your config, touching your MPD. --dry-run first
 #        if you like.
@@ -20,6 +21,7 @@ PREFIX="${HOME}/.local"
 DRYRUN=0
 FORCE=0
 SRC_DIR="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+source "$SRC_DIR/lib/screens.sh"  # detect_screen/cells_for_screen/seed_cells
 
 usage() {
     sed -n '2,12p' "$SRC_DIR/install.sh" | sed 's/^# \{0,1\}//'
@@ -89,6 +91,17 @@ if [ -f "$CONF" ] && [ "$FORCE" -ne 1 ]; then
     log "existing config untouched: $CONF (use --force to refresh files)"
 else
     run "cp -a '$SRC_DIR/config.jsonc.example' '$CONF'"
+    if [ "$DRYRUN" -ne 1 ]; then
+        # Fresh config only: size the picker to ~75% of THIS screen, using
+        # the same cell metrics the compositor rules derive from.
+        _res="$(detect_screen)"
+        read -r _cols _rows <<<"$(cells_for_screen "$_res")"
+        seed_cells "$CONF" "$_cols" "$_rows"
+        log "screen $_res -> picker ${_cols}x${_rows} cells (~75%)"
+        unset _res _cols _rows
+    else
+        log "[dry-run] would seed picker cells for this screen (~75%)"
+    fi
 fi
 
 log "== 3/3 next steps =="

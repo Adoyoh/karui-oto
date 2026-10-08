@@ -21,6 +21,7 @@ export KO_ROOT="$ROOT"
 source "$KO_ROOT/lib/common.sh"
 source "$KO_ROOT/lib/binds.sh"
 source "$KO_ROOT/lib/bindsinstall.sh"
+source "$KO_ROOT/lib/screens.sh"
 
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
@@ -178,6 +179,91 @@ esac
 ) && bad "validate accepts bad font-colors value" \
   || ok "validate rejects bad font-colors value"
 
+# 9. rules_px: cells x font metrics -> pixels (spot values hand-computed:
+# 100x24@16+8 = 976x496; 125x34@16+8 = 1216x696; defaults are integers).
+# 10. stale rules: markers present but content differs (e.g. width/height
+# edited after install) must report drift so the next sync regenerates.
+[ "$(WIDTH=100 HEIGHT=24 FONT_SIZE=16 WIN_PAD=8 rules_px)" = "976 496" ] \
+    && ok "rules_px 100x24 -> 976 496" \
+    || bad "rules_px 100x24 wrong: [$(WIDTH=100 HEIGHT=24 FONT_SIZE=16 WIN_PAD=8 rules_px)]"
+[ "$(WIDTH=125 HEIGHT=34 FONT_SIZE=16 WIN_PAD=8 rules_px)" = "1216 696" ] \
+    && ok "rules_px 125x34 -> 1216 696" \
+    || bad "rules_px 125x34 wrong"
+_rpx="$(rules_px)"
+case "$_rpx" in
+    ''|*[!0-9\ ]*) bad "rules_px defaults not integers: [$_rpx]" ;;
+    *) ok "rules_px defaults integers: [$_rpx]" ;;
+esac
+# gen_rules_block carries the derived numbers (niri + hyprland legacy).
+WIDTH=100 HEIGHT=24 FONT_SIZE=16 WIN_PAD=8 TERM_CLASS="buscador_mpd_test"
+export WIDTH HEIGHT FONT_SIZE WIN_PAD TERM_CLASS
+gen_rules_block niri | grep -q "fixed 976" \
+    && ok "niri rules carry derived width" \
+    || bad "niri rules missing derived width"
+XDG_CONFIG_HOME="$T/home" gen_rules_block hyprland 2>/dev/null | grep -q "976" \
+    && ok "hyprland rules carry derived numbers" \
+    || bad "hyprland rules missing derived numbers"
+
+# 10. stale rules content (markers present, numbers from other dims)
+# reports drift; identical content is clean.
+mkdir -p "$T/stale/hypr"
+printf -- '-- >>> karui-oto rules >>>\n%s\n-- <<< karui-oto rules <<<\n' \
+    'hl.window_rule({ float = true, })' > "$T/stale/hypr/hyprland.lua"
+WIDTH=100 HEIGHT=24 FONT_SIZE=16 WIN_PAD=8 TERM_CLASS="buscador_mpd_test" \
+XDG_CONFIG_HOME="$T/stale" binds_drift hyprland 2>&1 | grep -q "stale: window rules" \
+    && ok "drift flags stale rules content" \
+    || bad "drift misses stale rules content"
+
 rm -f /tmp/ko-test-mpd.conf
+
+# 11. screens: cells_for_screen spot values (~75% coverage).
+[ "$(cells_for_screen 1366x768)" = "105 28" ] \
+    && ok "cells 768p -> 105 28" \
+    || bad "cells 768p wrong: [$(cells_for_screen 1366x768)]"
+[ "$(cells_for_screen 1920x1080)" = "148 40" ] \
+    && ok "cells 1080p -> 148 40" \
+    || bad "cells 1080p wrong"
+[ "$(cells_for_screen 1600x900)" = "123 33" ] \
+    && ok "cells 900p -> 123 33" \
+    || bad "cells 900p wrong"
+[ "$(cells_for_screen 2560x1440)" = "198 53" ] \
+    && ok "cells 2k -> 198 53" \
+    || bad "cells 2k wrong"
+[ "$(cells_for_screen 3840x2160)" = "298 80" ] \
+    && ok "cells 4k -> 298 80" \
+    || bad "cells 4k wrong"
+[ "$(cells_for_screen 320x200)" = "40 10" ] \
+    && ok "cells tiny clamps to floors" \
+    || bad "cells floors wrong"
+
+# 12. detect_screen tiers via fixture sysfs (KO_SYSFS_DRM).
+mkdir -p "$T/drm/card0-eDP-1" "$T/drm/card0-HDMI-1"
+printf 'connected' > "$T/drm/card0-eDP-1/status"
+printf '1366x768\n1280x720\n' > "$T/drm/card0-eDP-1/modes"
+printf 'disconnected' > "$T/drm/card0-HDMI-1/status"
+[ "$(KO_SYSFS_DRM=$T/drm detect_screen)" = "1366x768" ] \
+    && ok "detect prefers first connected DRM mode" \
+    || bad "detect DRM wrong"
+printf 'disconnected' > "$T/drm/card0-eDP-1/status"
+# No connected DRM output here: xrandr (if reachable) or the 1080p fallback.
+# Either way the result must be well-formed; the exact tier is env-specific.
+case "$(KO_SYSFS_DRM=$T/drm detect_screen)" in
+    ''|*[!0-9x]*) bad "detect fallback malformed" ;;
+    *) ok "detect fallback well-formed" ;;
+esac
+
+# 13. seed_cells patches kitty+foot only; result still parses.
+cp "$KO_ROOT/config.jsonc.example" "$T/seed.jsonc"
+seed_cells "$T/seed.jsonc" 105 28
+[ "$(grep -c '"width": 105' "$T/seed.jsonc")" -eq 2 ] \
+    && [ "$(grep -c '"height": 28' "$T/seed.jsonc")" -eq 2 ] \
+    && ok "seed writes both terminals" \
+    || bad "seed missed a terminal section"
+if python3 "$KO_ROOT/lib/jconfig.py" "$T/seed.jsonc" >/dev/null 2>&1; then
+    ok "seeded config still parses"
+else
+    bad "seed broke config syntax"
+fi
+
 printf -- '---\npass=%s fail=%s\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

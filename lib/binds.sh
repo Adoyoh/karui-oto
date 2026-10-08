@@ -182,24 +182,36 @@ gen_media_block() {
     done <<<"$MEDIA_TABLE"
 }
 
+# rules_px: picker size in pixels derived from terminal cells, the single
+# source of truth (width/height knobs work again: the rule follows them).
+# Cell metrics are approximations for monospace fonts (advance ~0.6em wide,
+# ~1.25em tall) plus the window padding on both sides. Prints "W H".
+rules_px() {
+    local cols="${WIDTH:-100}" rows="${HEIGHT:-24}"
+    local fs="${FONT_SIZE:-16}" pad="${WIN_PAD:-8}" w h
+    w="$(awk -v c="$cols" -v f="$fs" -v p="$pad" 'BEGIN{ printf "%.0f", c * f * 0.6 + 2 * p }')"
+    h="$(awk -v r="$rows" -v f="$fs" -v p="$pad" 'BEGIN{ printf "%.0f", r * f * 1.25 + 2 * p }')"
+    printf '%s %s' "$w" "$h"
+}
+
 # gen_rules_block <comp>: floating-picker window rules anchored at TERM_CLASS.
 # Installed ALWAYS together with the binds (same apply flow, own markers).
 # The picker then opens big and centered instead of squeezed into tiling.
 # Empty output = compositor without automatic float (binds only, note it).
 gen_rules_block() {
-    local comp="$1" cls="${TERM_CLASS:-buscador_mpd}"
+    local comp="$1" cls="${TERM_CLASS:-buscador_mpd}" px pw ph
+    px="$(rules_px)"; pw="${px% *}"; ph="${px#* }"
     case "$comp" in
         niri)
-            printf 'window-rule {\n    match app-id="%s"\n    open-floating true\n    default-column-width { fixed 1200; }\n    default-window-height { fixed 700; }\n}\n' "$cls" ;;
+            printf 'window-rule {\n    match app-id="%s"\n    open-floating true\n    default-column-width { fixed %s; }\n    default-window-height { fixed %s; }\n}\n' "$cls" "$pw" "$ph" ;;
         hyprland)
             if [ "$(hypr_variant)" = "lua" ]; then
-                # NOTE: size takes exact pixels ({ 1200, 700 }): percent
-                # strings are silently ignored by hl.window_rule in 0.55
-                # (verified live: { 1100, 650 } applies, "90% 90%" doesn't).
-                printf 'hl.window_rule({\n    name = "karui-oto",\n    match = { class = "%s" },\n    float = true,\n    size = { 1200, 700 },\n    center = true,\n})\n' "$cls"
+                # NOTE: size takes exact pixels (verified live: percent
+                # strings are silently ignored by hl.window_rule in 0.55).
+                printf 'hl.window_rule({\n    name = "karui-oto",\n    match = { class = "%s" },\n    float = true,\n    size = { %s, %s },\n    center = true,\n})\n' "$cls" "$pw" "$ph"
             else
-                printf 'windowrule = float,class:%s\nwindowrule = size 90%% 90%%,class:%s\nwindowrule = center,class:%s\n' \
-                    "$cls" "$cls" "$cls"
+                printf 'windowrule = float,class:%s\nwindowrule = size %s %s,class:%s\nwindowrule = center,class:%s\n' \
+                    "$cls" "$pw" "$ph" "$cls" "$cls"
             fi ;;
     esac
 }

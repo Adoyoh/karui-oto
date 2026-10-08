@@ -1,6 +1,16 @@
 # CHANGELOG — format: `## [version] - date` (newest on top)
 
-## [1.3.0] - 2026-10-08
+## [1.4.0] - 2026-10-08
+- Fresh installs size the picker to ~75% of the detected screen (DRM
+  sysfs, xrandr, else 1080p): installer seeds width/height cells, same
+  metrics the floating rules derive from. Existing configs untouched.
+- Drift compares rules CONTENT, not just markers: edited width/height/
+  font_size regenerate the floating rules on next picker open (this was
+  silently stale before).
+- Window size follows width/height cells again: compositor rules derive
+  exact pixels from cells x font metrics (Niri fixed, Hyprland size);
+  bigger cell defaults keep the big floating look. Behavior change:
+  existing installs resize to the computed size on next sync.
 - font-colors{} grows to 16 keys: scrollbar/gutter/border-label/list-label
   join text/match/glyph/chrome tints (dashes map to FC_* underscores).
 - Examples/ screenshots folder (README wiring pending).

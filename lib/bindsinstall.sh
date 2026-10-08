@@ -172,13 +172,33 @@ binds_drift() {
             drift=1
         fi
     done
-    local _rf
+    local _rf _exp _got
     _rf="$(comp_file "$comp")"
-    if [ -n "$(gen_rules_block "$comp")" ]; then
-        if grep -qF -- "$(mark_open_rules "$comp")" "$_rf" 2>/dev/null; then :;
-        else printf 'missing: floating-picker window rules not installed\n'; drift=1; fi
+    _exp="$(gen_rules_block "$comp")"
+    if [ -n "$_exp" ]; then
+        if ! grep -qF -- "$(mark_open_rules "$comp")" "$_rf" 2>/dev/null; then
+            printf 'missing: floating-picker window rules not installed\n'; drift=1
+        else
+            # Content compare, not just markers: rule size derives from
+            # width/height/font_size, so edited knobs must regenerate even
+            # with the block present. Generation is deterministic, so a
+            # byte compare (trailing newlines stripped both sides) is exact.
+            _got="$(rules_installed_block "$comp" "$_rf")"
+            if [ "$_got" != "$_exp" ]; then
+                printf 'stale: window rules differ from generated (width/height/font changed?) — will regenerate\n'; drift=1
+            fi
+        fi
     fi
     return "$drift"
+}
+
+# rules_installed_block <comp> <file>: print the lines inside our rules
+# marked section (markers excluded). Empty when absent.
+rules_installed_block() {
+    local comp="$1" file="$2" o c
+    o="$(mark_open_rules "$comp")"; c="$(mark_close_rules "$comp")"
+    [ -f "$file" ] || return 1
+    awk -v o="$o" -v c="$c" '$0 == o { f = 1; next } $0 == c { f = 0; next } f' "$file"
 }
 
 # installed_mode_line <comp> <mode>: print our installed line for the mode

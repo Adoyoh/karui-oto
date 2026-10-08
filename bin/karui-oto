@@ -41,7 +41,7 @@ export KO_ROOT
 
 source "$KO_ROOT/lib/common.sh"
 
-KO_VERSION="1.3.0"
+KO_VERSION="1.4.0"
 
 usage() {
     cat <<EOF

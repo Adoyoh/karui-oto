@@ -41,7 +41,8 @@ keypress already works (binds self-sync in the background).
 ## Installation (nothing touches your `.bashrc`)
 
 1. Copies the tree to `~/.local/share/karui-oto/` + symlinks in `~/.local/bin/`.
-2. Creates `~/.config/karui-oto/config.jsonc` **only if missing** (never overwritten).
+2. Creates `~/.config/karui-oto/config.jsonc` **only if missing** (never overwritten),
+   sized to ~75% of your detected screen (768p→105×28 … 4K→298×80 cells).
 3. Prints what to paste into your compositor (see `binds/`: niri, hyprland).
 
 Alternatives: clone to `~/apps/` and use absolute paths in the binds (zero

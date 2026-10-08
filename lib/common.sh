@@ -77,14 +77,14 @@ defaults() {
     # Same shape, independent values: each terminal to its own taste.
     KITTY_FONT="Liberation Mono"  # fontconfig family (verified)
     KITTY_FONT_SIZE="16"          # points
-    KITTY_WIDTH="95"              # cells (adapter appends "c")
-    KITTY_HEIGHT="15"
+    KITTY_WIDTH="120"             # cells: drives the compositor rule size
+    KITTY_HEIGHT="30"             # (rules_px: ~1168x616 at 16pt, big pickup)
     KITTY_COLOR=""                # "" = your kitty global theme; "#rrggbb" = bg + auto-contrast text
     KITTY_TRANSPARENCY="0.85"    # 0.00–1.00, background ONLY
     FOOT_FONT="Liberation Mono"
     FOOT_FONT_SIZE="16"
-    FOOT_WIDTH="100"              # tuned to match kitty presence
-    FOOT_HEIGHT="24"
+    FOOT_WIDTH="124"              # cells: drives the compositor rule size
+    FOOT_HEIGHT="34"              # (rules_px: ~1206x696 at 16pt, big pickup)
     FOOT_COLOR=""                 # "" = theme; "#rrggbb" + auto contrast
     FOOT_TRANSPARENCY="0.85"     # 0.00–1.00, WHOLE window (foot has no
                                   # per-color alpha: lower washes the text)

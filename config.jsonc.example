@@ -19,8 +19,8 @@
   "kitty": {
     "font": "Liberation Mono",        // fontconfig family (verified)
     "font_size": 16,                  // points
-    "width": 95,                      // cells
-    "height": 15,
+    "width": 120,                     // cells: ALSO drives the floating rule size
+    "height": 30,                     // (bigger cells = bigger window)
     "color": "",                      // "" = your kitty global theme; "#rrggbb" = bg + auto-contrast text
     "transparency": 0.85              // 0.00–1.00, background ONLY
   },
@@ -29,8 +29,8 @@
   "foot": {
     "font": "Liberation Mono",
     "font_size": 16,
-    "width": 100,                     // tuned to match kitty presence
-    "height": 24,
+    "width": 124,                     // cells: ALSO drives the floating rule size
+    "height": 34,                     // (bigger cells = bigger window)
     "color": "",                      // "" = theme; "#rrggbb" + auto contrast
     "transparency": 0.85              // 0.00–1.00, WHOLE window (foot has no per-color alpha: lower washes the text)
   },

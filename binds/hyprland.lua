@@ -17,10 +17,12 @@ hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("/home/USUARIO/.local/bin/karui-media p
 
 -- Floating picker (same TERM_CLASS the tool generates rules for).
 -- size takes exact pixels: percent strings are ignored by hl.window_rule.
+-- The tool computes it from your width/height cells (example values below
+-- match ~120x28 cells at 16pt); edit cells in config.jsonc, not here.
 hl.window_rule({
     name = "karui-oto",
     match = { class = "buscador_mpd" },
     float = true,
-    size = { 1200, 700 },
+    size = { 1168, 576 },
     center = true,
 })

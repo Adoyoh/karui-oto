@@ -193,16 +193,3 @@ missing (with fallback); the default (Liberation Mono) is only advisory.
 - Changed `shortcuts{}` but keys still run the old command? The sync heals
   it on the next picker run (`doctor` shows drift meanwhile). Fresh
   compositor with no binds at all? `doctor` offers the one-time install.
-
-## Roadmap
-
-Done: background auto-sync, Hyprland Lua binds, strict validation with
-line numbers, `tests/smoke.sh`, per-compositor shortcuts.
-
-- [ ] Extra themes (light latte, nord) + optional pixel-art `background_image`
-- [ ] Real packaging (AUR, .deb, home-manager) to retire install.sh
-- [ ] Genres/listary mode via M3U
-
-## License
-
-MIT — see `LICENSE`. Edit the holder with your name when forking.
